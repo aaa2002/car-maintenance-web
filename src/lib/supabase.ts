@@ -5,7 +5,7 @@ const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 if (!url || !key) {
   throw new Error(
-    'Missing Supabase configuration. Copy .env.example to .env.local and set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.'
+    'Missing Supabase configuration. Connect the Supabase integration on Vercel or copy .env.example to .env.local and set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY.'
   );
 }
 
