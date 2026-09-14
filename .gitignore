@@ -6,3 +6,15 @@
 .DS_Store
 .env*
 !.env.example
+
+# Credentials and private keys
+.envrc
+.dev.vars
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.jks
+*.keystore
+**/keystore.properties
