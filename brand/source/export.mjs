@@ -53,8 +53,11 @@ function ico(buffers) {
 
   // Files the app serves (Next.js metadata conventions + PWA manifest icons).
   const app = path.join(R, 'src', 'app'); const icons = path.join(R, 'public', 'icons'); mk(icons);
-  fs.copyFileSync(path.join(B, 'vehix-favicon.ico'), path.join(app, 'favicon.ico'));
-  fs.copyFileSync(path.join(S, 'vehix-favicon-small.svg'), path.join(app, 'icon.svg'));
+  // The browser tab uses the dark app icon.
+  const tab = [];
+  for (const size of [16, 32, 48]) tab.push({ size, data: await png('vehix-app-icon-dark', { width: size }).toBuffer() });
+  fs.writeFileSync(path.join(app, 'favicon.ico'), ico(tab));
+  fs.copyFileSync(path.join(S, 'vehix-app-icon-dark.svg'), path.join(app, 'icon.svg'));
   await png('vehix-apple-touch-icon', { width: 180 }).toFile(path.join(app, 'apple-icon.png'));
   fs.copyFileSync(path.join(B, 'png', 'vehix-og-image.png'), path.join(app, 'opengraph-image.png'));
   fs.copyFileSync(path.join(B, 'png', 'app-icon', 'vehix-app-icon-blue-192.png'), path.join(icons, 'icon-192.png'));

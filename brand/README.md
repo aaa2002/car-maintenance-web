@@ -65,8 +65,8 @@ Masters are 1024px; 512px and 192px PNGs are alongside.
 
 | File | Source |
 |---|---|
-| `src/app/favicon.ico` | `vehix-favicon.ico` |
-| `src/app/icon.svg` | `svg/vehix-favicon-small.svg` |
+| `src/app/favicon.ico` | `svg/vehix-app-icon-dark.svg` at 16, 32 and 48px |
+| `src/app/icon.svg` | `svg/vehix-app-icon-dark.svg` |
 | `src/app/apple-icon.png` | `svg/vehix-apple-touch-icon.svg` at 180px |
 | `src/app/opengraph-image.png` | `png/vehix-og-image.png` |
 | `public/icons/icon-192.png`, `icon-512.png` | `svg/vehix-app-icon-blue.svg` |
