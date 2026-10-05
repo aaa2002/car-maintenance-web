@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { DayPicker, type Matcher } from 'react-day-picker';
 import { enGB, ro } from 'react-day-picker/locale';
 import { dateInputValue, today } from '@/lib/format';
 import { useSettings } from './providers';
+import { useAnchoredPopover } from './use-anchored-popover';
 
 // Values stay in the same yyyy-mm-dd shape the native date input used.
 const parse = (value: string) => {
@@ -18,7 +19,6 @@ export function DateField({ id, value, onChange, min, max, invalid, autoFocus }:
   const { t, language } = useSettings();
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
-  const panel = useRef<HTMLDivElement>(null);
   const panelId = useId();
   const valueId = useId();
   const selected = parse(value);
@@ -31,31 +31,8 @@ export function DateField({ id, value, onChange, min, max, invalid, autoFocus }:
     ? new Intl.DateTimeFormat(language === 'ro' ? 'ro-RO' : 'en-GB', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' }).format(selected)
     : t('pickDate');
 
-  // The calendar lives in the browser's top layer (popover), so it floats above
-  // dialogs without being clipped. It sits under the field, or above it when there is no room.
-  useLayoutEffect(() => {
-    const node = panel.current;
-    const anchor = trigger.current;
-    if (!open || !node || !anchor) return;
-    node.showPopover();
-    const rect = anchor.getBoundingClientRect();
-    const gap = 8;
-    const { offsetWidth: width, offsetHeight: height } = node;
-    const below = rect.bottom + gap + height <= window.innerHeight - gap;
-    node.style.top = `${Math.max(gap, below ? rect.bottom + gap : rect.top - gap - height)}px`;
-    node.style.left = `${Math.min(Math.max(gap, rect.right - width), window.innerWidth - width - gap)}px`;
-    node.dataset.side = below ? 'bottom' : 'top';
-  }, [open]);
-
-  // Close when the page around it moves, or when the browser light-dismisses it.
-  useEffect(() => {
-    if (!open) return;
-    const close = () => setOpen(false);
-    const onScroll = (event: Event) => { if (!panel.current?.contains(event.target as Node)) close(); };
-    window.addEventListener('resize', close);
-    document.addEventListener('scroll', onScroll, true);
-    return () => { window.removeEventListener('resize', close); document.removeEventListener('scroll', onScroll, true); };
-  }, [open]);
+  const close = useCallback(() => setOpen(false), []);
+  const panel = useAnchoredPopover<HTMLDivElement>(open, trigger, close, { align: 'end' });
 
   function choose(next: string) {
     onChange(next);
