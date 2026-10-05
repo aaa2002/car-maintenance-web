@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { AppShell } from '@/components/app-shell';
 import { useAuth, useSettings } from '@/components/providers';
@@ -7,6 +8,7 @@ import { ConfirmButton, ErrorAlert, PageHeader, SectionHeader, StatusPill, useTo
 
 export default function SettingsPage() {
   const { user, signOut } = useAuth();
+  const router = useRouter();
   const { t, theme, setTheme, language, setLanguage, currency, setCurrency } = useSettings();
   const { toast } = useToast();
   const [error, setError] = useState<unknown>();
@@ -25,7 +27,7 @@ export default function SettingsPage() {
             <strong className="d-block">{user?.user_metadata.display_name || t('account')}</strong>
             <span className="d-block text-body-secondary text-break mt-1">{user?.email}</span>
           </div>
-          <ConfirmButton title={t('signOut')} message={`${t('signOut')}?`} confirmLabel={t('signOut')} cancelLabel={t('cancel')} className="btn btn-outline-danger" onConfirm={async () => { try { await signOut(); } catch (caught) { setError(caught); } }}><i className="bi bi-box-arrow-right me-2" />{t('signOut')}</ConfirmButton>
+          <ConfirmButton title={t('signOut')} message={`${t('signOut')}?`} confirmLabel={t('signOut')} cancelLabel={t('cancel')} className="btn btn-outline-danger" onConfirm={async () => { try { await signOut(); router.replace('/'); } catch (caught) { setError(caught); } }}><i className="bi bi-box-arrow-right me-2" />{t('signOut')}</ConfirmButton>
         </div>
       </section>
 

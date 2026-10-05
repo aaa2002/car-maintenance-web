@@ -72,7 +72,10 @@ h1, h2, h3 { letter-spacing: -.025em; }
 .mobile-bottom-nav { display: none; }
 .brand-mark { display: inline-flex; align-items: center; gap: 10px; padding-inline: 8px; color: var(--app-text); text-decoration: none; font-size: 1.12rem; font-weight: 680; letter-spacing: -.04em; }
 .brand-mark:hover { color: var(--app-text); }
-.brand-mark-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--app-brand); color: var(--app-on-brand); font-size: .95rem; }
+.brand-mark-svg { width: 38px; height: auto; flex: 0 0 auto; }
+.brand-mark .brand-word { height: 21px; width: auto; }
+.auth-visual .brand-mark-svg { width: 46px; }
+.auth-visual .brand-mark .brand-word { height: 25px; }
 .sidebar-label { display: none; }
 .sidebar-nav { display: grid; gap: 2px; }
 .sidebar-link { display: flex; align-items: center; gap: 11px; min-height: 40px; padding: 8px 12px; border-radius: 999px; color: var(--app-text-muted); text-decoration: none; font-weight: 520; transition: color var(--app-duration-fast), background-color var(--app-duration-fast); }
@@ -187,6 +190,11 @@ button.stat-item:hover { background: var(--app-surface-hover); }
 /* Dialogs and toasts */
 .app-dialog { width: min(560px, calc(100vw - 24px)); max-height: min(820px, calc(100dvh - 24px)); margin: auto; padding: 0; color: var(--app-text); background: var(--app-surface-raised); border: 0; border-radius: 22px; box-shadow: var(--app-bezel), var(--app-shadow-lg); overflow: hidden; opacity: 0; transform: translateY(10px) scale(.985); transition: opacity var(--app-duration), transform var(--app-duration) var(--app-ease), display var(--app-duration) allow-discrete, overlay var(--app-duration) allow-discrete; }
 .app-dialog[open] { opacity: 1; transform: none; }
+/* Header and footer stay put; only the body scrolls when content is taller than the dialog. */
+.app-dialog[open] { display: flex; flex-direction: column; }
+.app-dialog > form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.app-dialog-header, .app-dialog .modal-footer { flex: 0 0 auto; }
+.app-dialog .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .app-dialog::backdrop { background: rgb(6 8 14 / 55%); backdrop-filter: blur(10px) saturate(140%); opacity: 0; transition: opacity var(--app-duration), display var(--app-duration) allow-discrete, overlay var(--app-duration) allow-discrete; }
 .app-dialog[open]::backdrop { opacity: 1; }
 @starting-style { .app-dialog[open] { opacity: 0; transform: translateY(10px) scale(.985); } .app-dialog[open]::backdrop { opacity: 0; } }
@@ -219,8 +227,8 @@ button.stat-item:hover { background: var(--app-surface-hover); }
 
 /* Sign-in */
 .auth-layout { min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(420px, .9fr); }
-.auth-visual { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 48px; overflow: hidden; padding: clamp(32px, 5vw, 64px); color: #eef0f6; background: #0d1020; }
-.auth-visual::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(42 70 212 / 22%), transparent 55%); pointer-events: none; }
+.auth-visual { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 48px; overflow: hidden; padding: clamp(32px, 5vw, 64px); color: #eef0f6; background: #08142c; }
+.auth-visual::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(31 85 214 / 22%), transparent 55%); pointer-events: none; }
 .auth-visual .brand-mark { position: relative; z-index: 1; padding-inline: 0; }
 .auth-copy { position: relative; z-index: 1; max-width: 560px; }
 .auth-copy h1 { margin: 0 0 14px; font-size: clamp(2.4rem, 4.4vw, 3.9rem); font-weight: 640; letter-spacing: -.055em; line-height: 1.02; }

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { errorMessage } from '@/lib/format';
 import { AuthScreen } from './auth-screen';
+import { BrandMark, BrandWordmark } from './brand-logo';
 import { useAuth, useSettings } from './providers';
 import { Loading, Modal } from './ui';
 
@@ -27,8 +28,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <a href="#main-content" className="visually-hidden-focusable position-fixed top-0 start-0 m-2 btn btn-primary" style={{ zIndex: 2100 }}>Skip to content</a>
       <aside className="desktop-sidebar">
         <Link href="/" className="brand-mark" aria-label="Vehix home">
-          <span className="brand-mark-icon"><i className="bi bi-car-front-fill" /></span>
-          <span className="brand-word">Vehix</span>
+          <BrandMark className="brand-mark-svg" />
+          <BrandWordmark className="brand-word" />
         </Link>
         <nav className="sidebar-nav" aria-label="Primary navigation">
           {nav.map((item) => (
