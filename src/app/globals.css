@@ -187,6 +187,11 @@ button.stat-item:hover { background: var(--app-surface-hover); }
 /* Dialogs and toasts */
 .app-dialog { width: min(560px, calc(100vw - 24px)); max-height: min(820px, calc(100dvh - 24px)); margin: auto; padding: 0; color: var(--app-text); background: var(--app-surface-raised); border: 0; border-radius: 22px; box-shadow: var(--app-bezel), var(--app-shadow-lg); overflow: hidden; opacity: 0; transform: translateY(10px) scale(.985); transition: opacity var(--app-duration), transform var(--app-duration) var(--app-ease), display var(--app-duration) allow-discrete, overlay var(--app-duration) allow-discrete; }
 .app-dialog[open] { opacity: 1; transform: none; }
+/* Header and footer stay put; only the body scrolls when content is taller than the dialog. */
+.app-dialog[open] { display: flex; flex-direction: column; }
+.app-dialog > form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.app-dialog-header, .app-dialog .modal-footer { flex: 0 0 auto; }
+.app-dialog .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .app-dialog::backdrop { background: rgb(6 8 14 / 55%); backdrop-filter: blur(10px) saturate(140%); opacity: 0; transition: opacity var(--app-duration), display var(--app-duration) allow-discrete, overlay var(--app-duration) allow-discrete; }
 .app-dialog[open]::backdrop { opacity: 1; }
 @starting-style { .app-dialog[open] { opacity: 0; transform: translateY(10px) scale(.985); } .app-dialog[open]::backdrop { opacity: 0; } }
