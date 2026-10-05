@@ -9,16 +9,17 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from 'react';
 import { errorMessage } from '@/lib/format';
 import { useSettings } from './settings-provider';
 
-export function PageHeader({ title, subtitle, eyebrow, action }: { title: string; subtitle?: string; eyebrow?: ReactNode; action?: ReactNode }) {
+export function PageHeader({ title, subtitle, back, action }: { title: string; subtitle?: string; back?: ReactNode; action?: ReactNode }) {
   return (
     <header className="page-header">
-      <div>
-        {eyebrow && <div className="eyebrow mb-2">{eyebrow}</div>}
+      <div className="min-w-0">
+        {back}
         <h1 className="page-title">{title}</h1>
         {subtitle && <p className="page-subtitle">{subtitle}</p>}
       </div>
@@ -26,6 +27,9 @@ export function PageHeader({ title, subtitle, eyebrow, action }: { title: string
     </header>
   );
 }
+
+// Index for the staggered .reveal entry animation.
+export const stagger = (index: number) => ({ '--i': index }) as CSSProperties;
 
 export function SectionHeader({ title, action }: { title: string; action?: ReactNode }) {
   return <div className="section-heading"><h2>{title}</h2>{action}</div>;
@@ -77,9 +81,6 @@ export function ListSkeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
-export function MetricSkeleton() {
-  return <div className="app-panel metric-panel" aria-hidden="true"><div className="skeleton" style={{ width: 76, height: 10 }} /><div className="skeleton" style={{ width: '66%', height: 25 }} /></div>;
-}
 
 export function Modal({ title, show, onClose, children, size, variant = 'sheet' }: { title: string; show: boolean; onClose: () => void; children: ReactNode; size?: 'lg' | 'xl'; variant?: 'modal' | 'sheet' }) {
   const dialog = useRef<HTMLDialogElement>(null);

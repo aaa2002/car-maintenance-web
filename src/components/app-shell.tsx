@@ -30,7 +30,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="brand-mark-icon"><i className="bi bi-car-front-fill" /></span>
           <span className="brand-word">Vehix</span>
         </Link>
-        <div className="sidebar-label">Workspace</div>
         <nav className="sidebar-nav" aria-label="Primary navigation">
           {nav.map((item) => (
             <Link key={item.href} href={item.href} aria-current={active(item.href) ? 'page' : undefined} title={t(item.key)} className={`sidebar-link ${active(item.href) ? 'active' : ''}`}>
@@ -40,7 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <Link href="/settings" className="sidebar-account text-decoration-none text-body" title={user.email ?? undefined}>
           <i className="bi bi-person-circle" />
-          <span className="sidebar-account-copy ms-2"><span className="d-block small fw-semibold">{user.user_metadata.display_name || 'Account'}</span><span className="d-block small text-body-secondary truncate">{user.email}</span></span>
+          <span className="sidebar-account-copy"><span className="d-block small fw-semibold truncate">{user.user_metadata.display_name || 'Account'}</span><span className="d-block small text-body-secondary truncate">{user.email}</span></span>
         </Link>
       </aside>
       <div className="desktop-main"><main id="main-content" className="content-wrap">{children}</main></div>
