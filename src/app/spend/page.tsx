@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
 import { useAuth, useSettings } from '@/components/providers';
-import { ErrorAlert, PageHeader, SectionHeader, StatusPill } from '@/components/ui';
+import { ErrorAlert, PageHeader, StatusPill } from '@/components/ui';
 import { getCars, getDailySpendForMonth, type Car, type DailySpend } from '@/lib/database';
-import { money, monthBounds } from '@/lib/format';
+import { localDate, money, monthBounds } from '@/lib/format';
 
 type Filter = 'total' | 'repairs' | 'trips';
 const amountFor = (row: DailySpend, filter: Filter) => (filter !== 'trips' ? row.repairSpend : 0) + (filter !== 'repairs' ? row.tripSpend : 0);
@@ -56,21 +56,27 @@ export default function SpendPage() {
   const monthLabel = formatter.format(new Date(`${bounds.start}T12:00:00`));
 
   return <AppShell>
-    <PageHeader eyebrow={t('overview')} title={t('spend')} subtitle={monthLabel} action={<div className="d-flex align-items-center gap-2">{refreshing && <span className="spinner-border spinner-border-sm text-body-secondary" role="status" aria-label={t('loading')} />}<div className="segmented"><button aria-label={t('previous')} onClick={() => setMonthOffset((value) => value - 1)}><i className="bi bi-chevron-left" /></button><button className={!monthOffset ? 'active' : ''} onClick={() => setMonthOffset(0)}>{t('thisMonth')}</button><button aria-label={t('next')} disabled={monthOffset >= 0} onClick={() => setMonthOffset((value) => value + 1)}><i className="bi bi-chevron-right" /></button></div></div>} />
+    <PageHeader title={t('spend')} subtitle={monthLabel} action={<div className="d-flex align-items-center gap-2">{refreshing && <span className="spinner-border spinner-border-sm text-body-secondary" role="status" aria-label={t('loading')} />}<div className="segmented"><button aria-label={t('previous')} onClick={() => setMonthOffset((value) => value - 1)}><i className="bi bi-chevron-left" /></button><button className={!monthOffset ? 'active' : ''} onClick={() => setMonthOffset(0)}>{t('thisMonth')}</button><button aria-label={t('next')} disabled={monthOffset >= 0} onClick={() => setMonthOffset((value) => value + 1)}><i className="bi bi-chevron-right" /></button></div></div>} />
     {Boolean(error) && <ErrorAlert error={error} onRetry={() => void load()} retryLabel={t('retry')} />}
 
-    <div className="app-panel app-panel-body mb-4"><div className="row g-3 align-items-end">
-      <div className="col-md-6"><label className="form-label" htmlFor="spend-vehicle">{t('vehicle')}</label><select id="spend-vehicle" className="form-select" disabled={loading} value={carId ?? ''} onChange={(event) => setCarId(event.target.value ? Number(event.target.value) : undefined)}><option value="">{t('allVehicles')}</option>{cars.map((car) => <option value={car.id} key={car.id}>{car.brand} {car.model}</option>)}</select></div>
-      <div className="col-md-6"><span className="form-label d-block">{t('spend')}</span><div className="segmented w-100">{(['total', 'repairs', 'trips'] as Filter[]).map((value) => <button key={value} className={`flex-fill ${filter === value ? 'active' : ''}`} aria-pressed={filter === value} onClick={() => setFilter(value)}>{t(value === 'repairs' ? 'repairs' : value === 'trips' ? 'trips' : 'total')}</button>)}</div></div>
-    </div></div>
+    <div className="app-panel spend-total">
+      <div className="min-w-0">
+        <span className="metric-label">{t('total')}</span>
+        {loading ? <div className="skeleton mt-2" style={{ width: 220, height: 40 }} /> : <strong className="metric-value d-block">{money(total, currency, language)}</strong>}
+        {change !== null && <div className="metric-note"><StatusPill tone={change <= 0 ? 'success' : 'warning'}>{Math.abs(change).toFixed(0)}% {change <= 0 ? t('lower') : t('higher')}</StatusPill><span className="ms-2">{t('thanPrevious')}</span></div>}
+      </div>
+      <div className="spend-previous"><span className="metric-label d-block">{t('previousMonth')}</span><strong className="num fs-5 d-block mt-1">{loading ? '-' : money(previousTotal, currency, language)}</strong></div>
+    </div>
 
-    <div className="row g-3 mb-4"><div className="col-md-8"><div className="app-panel metric-panel h-100"><span className="metric-label">{t('total')} · {monthLabel}</span>{loading ? <div className="skeleton" style={{ width: 220, height: 34 }} /> : <strong className="metric-value">{money(total, currency, language)}</strong>}{change !== null && <div className="metric-note"><StatusPill tone={change <= 0 ? 'success' : 'warning'}>{Math.abs(change).toFixed(0)}% {change <= 0 ? t('lower') : t('higher')}</StatusPill><span className="ms-2">{t('thanPrevious')}</span></div>}</div></div><div className="col-md-4"><div className="app-panel metric-panel h-100"><span className="metric-label">{t('previousMonth')}</span><strong className="fs-5 text-tabular">{loading ? '—' : money(previousTotal, currency, language)}</strong></div></div></div>
-
-    <section><SectionHeader title={`${t('spend')} · ${monthLabel}`} />
+    <section>
+      <div className="spend-filters">
+        <div><label className="form-label" htmlFor="spend-vehicle">{t('vehicle')}</label><select id="spend-vehicle" className="form-select" disabled={loading} value={carId ?? ''} onChange={(event) => setCarId(event.target.value ? Number(event.target.value) : undefined)}><option value="">{t('allVehicles')}</option>{cars.map((car) => <option value={car.id} key={car.id}>{car.brand} {car.model}</option>)}</select></div>
+        <div><span className="form-label d-block">{t('spend')}</span><div className="segmented w-100">{(['total', 'repairs', 'trips'] as Filter[]).map((value) => <button key={value} className={`flex-fill ${filter === value ? 'active' : ''}`} aria-pressed={filter === value} onClick={() => setFilter(value)}>{t(value === 'repairs' ? 'repairs' : value === 'trips' ? 'trips' : 'total')}</button>)}</div></div>
+      </div>
       <div className="app-panel app-panel-body">{loading ? <div className="skeleton" style={{ height: 275 }} /> : total > 0 ? <>
+        <div className="d-flex gap-4 small text-body-secondary">{filter !== 'trips' && <span><span className="legend-swatch" style={{ background: 'var(--app-brand)' }} />{t('repairsLegend')}</span>}{filter !== 'repairs' && <span><span className="legend-swatch" style={{ background: 'var(--app-chart-2)' }} />{t('tripsLegend')}</span>}</div>
         <div className="chart-grid" role="group" aria-label={`${t('spend')}: ${money(total, currency, language)}`}>{chartRows.map((row) => { const repair = filter === 'trips' ? 0 : row.repairSpend; const trip = filter === 'repairs' ? 0 : row.tripSpend; const dayTotal = repair + trip; return <div className="chart-day" key={row.date} tabIndex={dayTotal ? 0 : -1} aria-label={`${row.date}: ${money(dayTotal, currency, language)}`} title={`${row.date}: ${money(dayTotal, currency, language)}`}><div className="chart-bars"><div className="chart-bar-repairs rounded-top" style={{ height: `${repair / max * 215}px` }} /><div className="chart-bar-trips rounded-top" style={{ height: `${trip / max * 215}px` }} /></div><small className="text-body-secondary">{Number(row.date.slice(-2))}</small></div>; })}</div>
-        <div className="d-flex gap-4 justify-content-center mt-3 small">{filter !== 'trips' && <span><span className="d-inline-block rounded me-2" style={{ width: 10, height: 10, background: 'var(--app-brand)' }} />{t('repairsLegend')}</span>}{filter !== 'repairs' && <span><span className="d-inline-block rounded me-2" style={{ width: 10, height: 10, background: 'var(--app-info)' }} />{t('tripsLegend')}</span>}</div>
-        <details className="mt-4"><summary className="text-body-secondary">View daily totals</summary><div className="table-responsive mt-3"><table className="table table-sm align-middle"><thead><tr><th>{t('date')}</th><th className="text-end">{t('repairs')}</th><th className="text-end">{t('trips')}</th><th className="text-end">{t('total')}</th></tr></thead><tbody>{chartRows.filter((row) => amountFor(row, filter) > 0).map((row) => <tr key={row.date}><td>{row.date}</td><td className="text-end">{money(row.repairSpend, currency, language)}</td><td className="text-end">{money(row.tripSpend, currency, language)}</td><td className="text-end fw-semibold">{money(row.repairSpend + row.tripSpend, currency, language)}</td></tr>)}</tbody></table></div></details>
+        <details className="mt-4"><summary className="text-body-secondary">{t('dailyTotals')}</summary><div className="table-responsive mt-3"><table className="table table-sm align-middle"><thead><tr><th>{t('date')}</th><th className="text-end">{t('repairs')}</th><th className="text-end">{t('trips')}</th><th className="text-end">{t('total')}</th></tr></thead><tbody>{chartRows.filter((row) => amountFor(row, filter) > 0).map((row) => <tr key={row.date}><td>{localDate(row.date, language)}</td><td className="text-end">{money(row.repairSpend, currency, language)}</td><td className="text-end">{money(row.tripSpend, currency, language)}</td><td className="text-end fw-semibold">{money(row.repairSpend + row.tripSpend, currency, language)}</td></tr>)}</tbody></table></div></details>
       </> : <div className="empty-state"><span className="empty-icon"><i className="bi bi-bar-chart" /></span><h3>{t('noSpend')}</h3></div>}</div>
     </section>
   </AppShell>;

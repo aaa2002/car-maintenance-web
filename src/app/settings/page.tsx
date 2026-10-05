@@ -14,7 +14,7 @@ export default function SettingsPage() {
 
   return <AppShell>
     <div className="settings-content">
-      <PageHeader eyebrow={t('account')} title={t('settings')} subtitle={t('localSettings')} />
+      <PageHeader title={t('settings')} subtitle={t('localSettings')} />
       {Boolean(error) && <ErrorAlert error={error} />}
 
       <section className="mb-4">
@@ -32,7 +32,7 @@ export default function SettingsPage() {
       <section className="mb-4">
         <SectionHeader title={t('preferences')} />
         <div className="app-panel">
-          <PreferenceRow icon="bi-circle-half" title={t('appearance')} subtitle={theme === 'system' ? t('followDevice') : `${t(theme)} interface`}>
+          <PreferenceRow icon="bi-circle-half" title={t('appearance')} subtitle={theme === 'system' ? t('followDevice') : t(theme)}>
             <ChoiceGroup label={t('appearance')} value={theme} choices={[{ value: 'system', label: t('system'), icon: 'bi-circle-half' }, { value: 'light', label: t('light'), icon: 'bi-sun' }, { value: 'dark', label: t('dark'), icon: 'bi-moon' }]} onChange={(value) => { setTheme(value); saved(); }} />
           </PreferenceRow>
           <PreferenceRow icon="bi-translate" title={t('language')} subtitle={language === 'en' ? 'English (UK)' : 'Română (RO)'}>

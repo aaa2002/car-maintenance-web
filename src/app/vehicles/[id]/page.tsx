@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { AppShell } from '@/components/app-shell';
 import { ComplianceForm, RepairForm, TripForm } from '@/components/maintenance-forms';
 import { useAuth, useSettings } from '@/components/providers';
-import { ConfirmButton, Empty, ErrorAlert, ListSkeleton, MetricSkeleton, Modal, PageHeader, SectionHeader, StatusPill, useToast } from '@/components/ui';
+import { ConfirmButton, Empty, ErrorAlert, ListSkeleton, Modal, PageHeader, SectionHeader, stagger, StatusPill, useToast } from '@/components/ui';
 import { VehicleForm } from '@/components/vehicle-form';
 import {
   deleteCar,
@@ -108,22 +108,32 @@ export default function VehiclePage() {
     {Boolean(error) && <ErrorAlert error={error} onRetry={() => void load()} retryLabel={t('retry')} />}
     {loading ? <VehicleSkeleton /> : !car ? <div className="app-panel"><Empty icon="bi-car-front" title="Vehicle not found" action={<Link href="/" className="btn btn-primary">{t('garage')}</Link>} /></div> : <>
       <PageHeader
-        eyebrow={<Link href="/" className="text-decoration-none"><i className="bi bi-arrow-left me-1" />{t('garage')}</Link>}
+        back={<Link href="/" className="back-link"><i className="bi bi-arrow-left" />{t('garage')}</Link>}
         title={`${car.brand} ${car.model}`}
         subtitle={`${car.year}${car.description ? ` · ${car.description}` : ''}`}
         action={<button className="btn btn-outline-secondary" onClick={() => setEditVehicle(true)}><i className="bi bi-pencil me-sm-2" /><span className="d-none d-sm-inline">{t('edit')}</span></button>}
       />
 
-      {car.photoUrl && <div className="app-panel mb-4"><img src={car.photoUrl} alt={`${car.brand} ${car.model}`} className="vehicle-photo" /></div>}
-
-      <div className="row g-3 mb-4">
-        <div className="col-lg-5"><button className="app-panel metric-panel w-100 text-start h-100" onClick={() => setMileageOpen(true)}><span className="d-flex justify-content-between"><span className="metric-label">{t('currentMileage')}</span><i className="bi bi-pencil text-body-secondary" /></span><strong className="metric-value">{car.mileageKm === null ? '—' : `${number(car.mileageKm, language, 0)} km`}</strong></button></div>
-        <div className="col-lg-7"><div className="app-panel app-panel-body h-100"><SectionHeader title={t('quickActions')} /><div className="quick-actions"><button className="quick-action" onClick={() => { setEditingRepair(null); setRepairOpen(true); }}><span className="row-icon tone-brand"><i className="bi bi-tools" /></span>{t('add')} {t('repair').toLowerCase()}</button><button className="quick-action" onClick={() => { setEditingTrip(null); setTripOpen(true); }}><span className="row-icon tone-info"><i className="bi bi-signpost-split" /></span>{t('add')} {t('trip').toLowerCase()}</button><button className="quick-action" onClick={() => setMileageOpen(true)}><span className="row-icon"><i className="bi bi-speedometer2" /></span>{t('currentMileage')}</button></div></div></div>
+      <div className="toolbar">
+        <button className="btn btn-primary btn-island" onClick={() => { setEditingRepair(null); setRepairOpen(true); }}>{t('add')} {t('repair').toLowerCase()}<span className="btn-island-icon"><i className="bi bi-tools" /></span></button>
+        <button className="btn btn-outline-secondary" onClick={() => { setEditingTrip(null); setTripOpen(true); }}><i className="bi bi-signpost-split me-2" />{t('add')} {t('trip').toLowerCase()}</button>
       </div>
 
-      <section className="mb-4">
+      {car.photoUrl && <div className="app-panel section-gap"><img src={car.photoUrl} alt={`${car.brand} ${car.model}`} className="vehicle-photo" /></div>}
+
+      <div className="app-panel stat-strip">
+        <button className="stat-item" onClick={() => setMileageOpen(true)} aria-label={`${t('currentMileage')}: ${t('edit')}`}>
+          <span className="metric-label">{t('currentMileage')}<i className="bi bi-pencil" /></span>
+          <strong className="metric-value">{car.mileageKm === null ? '-' : `${number(car.mileageKm, language, 0)} km`}</strong>
+        </button>
+        <div className="stat-item"><span className="metric-label">{t('totalCost')}</span><strong className="metric-value">{money(totalCost, currency, language)}</strong></div>
+        <div className="stat-item"><span className="metric-label">{t('loggedDistance')}</span><strong className="metric-value">{number(metrics.totalDistance, language, 0)} km</strong></div>
+        <div className="stat-item"><span className="metric-label">{t('avgConsumption')}</span><strong className="metric-value">{number(metrics.average, language)} L/100</strong></div>
+      </div>
+
+      <section className="section-gap">
         <SectionHeader title={t('documents')} />
-        <div className="row g-3">{(['itp', 'rca'] as const).map((kind) => {
+        <div className="row g-4">{(['itp', 'rca'] as const).map((kind) => {
           const doc = documentFor(kind); const days = doc ? daysUntil(doc.expiresDate) : null;
           const tone = days === null ? 'neutral' : days < 0 ? 'danger' : days <= 7 ? 'warning' : 'success';
           const label = doc ? (days! < 0 ? t('expired') : days! <= 7 ? t('expiresSoon') : t('valid')) : t('noDocument');
@@ -131,20 +141,9 @@ export default function VehiclePage() {
         })}</div>
       </section>
 
-      <section className="mb-4">
-        <SectionHeader title={t('overview')} />
-        <div className="row g-3">
-          <Metric label={t('repairs')} value={String(repairs.length)} />
-          <Metric label={t('trips')} value={String(trips.length)} />
-          <Metric label={t('totalCost')} value={money(totalCost, currency, language)} />
-          <Metric label={t('loggedDistance')} value={`${number(metrics.totalDistance, language, 0)} km`} />
-          <Metric label={t('avgConsumption')} value={`${number(metrics.average, language)} L/100 km`} />
-        </div>
-      </section>
-
-      <section className="mb-4">
-        <SectionHeader title={t('activity')} action={<div className="segmented">{(['all', 'repairs', 'trips'] as const).map((value) => <button key={value} className={activityFilter === value ? 'active' : ''} aria-pressed={activityFilter === value} onClick={() => setActivityFilter(value)}>{value === 'all' ? t('allActivity') : t(value)}</button>)}</div>} />
-        {activity.length ? <div className="data-list">{activity.map((item) => item.kind === 'repair' ? <RepairActivity key={item.key} repair={item.repair} language={language} onEdit={() => { setEditingRepair(item.repair); setRepairOpen(true); }} onDelete={async () => { await deleteRepair(item.repair.id); await load(true); toast(t('deletedItem')); }} /> : <TripActivity key={item.key} trip={item.trip} language={language} onEdit={() => { setEditingTrip(item.trip); setTripOpen(true); }} onDelete={async () => { await deleteTrip(item.trip.id); await load(true); toast(t('deletedItem')); }} />)}</div> : <div className="app-panel"><Empty icon="bi-activity" title={activityFilter === 'repairs' ? t('noRepairs') : activityFilter === 'trips' ? t('noTrips') : t('noActivity')} /></div>}
+      <section className="section-gap">
+        <SectionHeader title={t('activity')} action={<div className="segmented">{(['all', 'repairs', 'trips'] as const).map((value) => <button key={value} className={activityFilter === value ? 'active' : ''} aria-pressed={activityFilter === value} onClick={() => setActivityFilter(value)}>{value === 'all' ? t('allActivity') : `${t(value)} ${value === 'repairs' ? repairs.length : trips.length}`}</button>)}</div>} />
+        {activity.length ? <div className="data-list">{activity.map((item, index) => <div className="reveal" style={stagger(index)} key={item.key}>{item.kind === 'repair' ? <RepairActivity repair={item.repair} language={language} onEdit={() => { setEditingRepair(item.repair); setRepairOpen(true); }} onDelete={async () => { await deleteRepair(item.repair.id); await load(true); toast(t('deletedItem')); }} /> : <TripActivity trip={item.trip} language={language} onEdit={() => { setEditingTrip(item.trip); setTripOpen(true); }} onDelete={async () => { await deleteTrip(item.trip.id); await load(true); toast(t('deletedItem')); }} />}</div>)}</div> : <div className="app-panel"><Empty icon="bi-activity" title={activityFilter === 'repairs' ? t('noRepairs') : activityFilter === 'trips' ? t('noTrips') : t('noActivity')} /></div>}
       </section>
 
       <div className="border-top pt-4"><ConfirmButton title={t('deleteVehicle')} message={t('confirmDeleteVehicle')} confirmLabel={t('delete')} cancelLabel={t('cancel')} className="btn btn-outline-danger" onConfirm={async () => { await deleteCar(car.id); router.push('/'); }}>{t('deleteVehicle')}</ConfirmButton></div>
@@ -159,11 +158,7 @@ export default function VehiclePage() {
 }
 
 function VehicleSkeleton() {
-  return <><div className="mb-4"><div className="skeleton mb-2" style={{ width: 80, height: 10 }} /><div className="skeleton mb-2" style={{ width: 280, height: 34 }} /><div className="skeleton" style={{ width: 180, height: 12 }} /></div><div className="row g-3 mb-4"><div className="col-lg-5"><MetricSkeleton /></div><div className="col-lg-7"><MetricSkeleton /></div></div><ListSkeleton rows={4} /></>;
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="col-6 col-xl"><div className="app-panel metric-panel"><span className="metric-label">{label}</span><strong className="fs-6 text-tabular">{value}</strong></div></div>;
+  return <><div className="mb-4"><div className="skeleton mb-3" style={{ width: 70, height: 10 }} /><div className="skeleton mb-2" style={{ width: 260, height: 32 }} /><div className="skeleton" style={{ width: 170, height: 12 }} /></div><div className="d-flex gap-2 mb-4"><div className="skeleton" style={{ width: 140, height: 42 }} /><div className="skeleton" style={{ width: 120, height: 42 }} /></div><div className="app-panel stat-strip">{[0, 1, 2, 3].map((index) => <div className="stat-item" key={index}><div className="skeleton" style={{ width: 90, height: 10 }} /><div className="skeleton" style={{ width: '70%', height: 22 }} /></div>)}</div><ListSkeleton rows={4} /></>;
 }
 
 function RepairActivity({ repair, language, onEdit, onDelete }: { repair: Repair; language: 'en' | 'ro'; onEdit: () => void; onDelete: () => Promise<void> }) {

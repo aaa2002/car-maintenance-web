@@ -5,6 +5,7 @@ import type { Car, CarInput } from '@/lib/database';
 import { carMakes, modelsForMake } from '@/lib/car-catalog';
 import { errorMessage } from '@/lib/format';
 import { CAR_PHOTO_BUCKET, removeObject, uploadCarPhoto } from '@/lib/storage';
+import { FileDrop } from './file-drop';
 import { useSettings } from './providers';
 import { Modal } from './ui';
 
@@ -41,7 +42,7 @@ export function VehicleForm({ show, car, onClose, onSave }: { show: boolean; car
     const parsedYear = Number(year); const parsedMileage = mileage === '' ? null : Number(mileage); const nextErrors: Errors = {};
     if (!brand.trim()) nextErrors.brand = t('requiredFields');
     if (!model.trim()) nextErrors.model = t('requiredFields');
-    if (!Number.isInteger(parsedYear) || parsedYear < 1886 || parsedYear > new Date().getFullYear() + 1) nextErrors.year = `1886–${new Date().getFullYear() + 1}`;
+    if (!Number.isInteger(parsedYear) || parsedYear < 1886 || parsedYear > new Date().getFullYear() + 1) nextErrors.year = `1886-${new Date().getFullYear() + 1}`;
     if (parsedMileage !== null && (!Number.isFinite(parsedMileage) || parsedMileage < 0)) nextErrors.mileage = t('invalidNumber');
     if (photo && photo.size > 10 * 1024 * 1024) nextErrors.photo = t('imageSizeError');
     setErrors(nextErrors); if (Object.keys(nextErrors).length) return;
@@ -61,10 +62,8 @@ export function VehicleForm({ show, car, onClose, onSave }: { show: boolean; car
     <div className="modal-body"><div className="row g-3">
       <div className="col-12">
         <label className="form-label" htmlFor="vehicle-photo">{t('photo')}</label>
-        {preview && !removePhoto && <img src={preview} alt="Vehicle preview" className="vehicle-photo rounded mb-2" style={{ aspectRatio: '16 / 7' }} />}
-        <input id="vehicle-photo" className={`form-control ${errors.photo ? 'is-invalid' : ''}`} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" onChange={(event) => pickPhoto(event.target.files?.[0] ?? null)} />
-        {errors.photo ? <div className="invalid-feedback">{errors.photo}</div> : <div className="form-text">{t('uploadHint')}</div>}
-        {car?.photoPath && !photo && <div className="form-check mt-2"><input id="remove-car-photo" type="checkbox" className="form-check-input" checked={removePhoto} onChange={(event) => { setRemovePhoto(event.target.checked); setPreview(event.target.checked ? null : car.photoUrl); }} /><label htmlFor="remove-car-photo" className="form-check-label">{t('removePhoto')}</label></div>}
+        <FileDrop id="vehicle-photo" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" hint={t('uploadHint')} invalid={Boolean(errors.photo)} file={photo} onFile={pickPhoto} preview={preview} existing={car?.photoPath ? { name: `${car.brand} ${car.model}` } : null} removed={removePhoto} onRemovedChange={(next) => { setRemovePhoto(next); setPreview(next ? null : car?.photoUrl ?? null); }} />
+        {errors.photo && <div className="invalid-feedback">{errors.photo}</div>}
       </div>
       <div className="col-sm-6"><label className="form-label required" htmlFor="vehicle-brand">{t('brand')}</label><input id="vehicle-brand" autoFocus list="vehicle-makes" autoComplete="off" className={`form-control ${errors.brand ? 'is-invalid' : ''}`} value={brand} maxLength={80} onChange={(event) => setBrand(event.target.value)} /><datalist id="vehicle-makes">{carMakes.map((make) => <option value={make} key={make} />)}</datalist>{errors.brand && <div className="invalid-feedback">{errors.brand}</div>}</div>
       <div className="col-sm-6"><label className="form-label required" htmlFor="vehicle-model">{t('model')}</label><input id="vehicle-model" list="vehicle-models" autoComplete="off" className={`form-control ${errors.model ? 'is-invalid' : ''}`} value={model} maxLength={80} onChange={(event) => setModel(event.target.value)} /><datalist id="vehicle-models">{modelsForMake(brand).map((value) => <option value={value} key={value} />)}</datalist>{errors.model && <div className="invalid-feedback">{errors.model}</div>}</div>

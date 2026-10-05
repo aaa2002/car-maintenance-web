@@ -1,9 +1,13 @@
 import type { Metadata, Viewport } from 'next';
+import { Geist } from 'next/font/google';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
+import 'react-day-picker/style.css';
 import '@/theme/tokens.css';
 import './globals.css';
 import { Providers } from '@/components/providers';
+
+const sans = Geist({ subsets: ['latin', 'latin-ext'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
   title: { default: 'Vehix', template: '%s | Vehix' },
@@ -14,14 +18,14 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f5f6f8' },
-    { media: '(prefers-color-scheme: dark)', color: '#080a0f' },
+    { media: '(prefers-color-scheme: light)', color: '#f5f5f7' },
+    { media: '(prefers-color-scheme: dark)', color: '#0b0c0e' },
   ],
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={sans.variable} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
