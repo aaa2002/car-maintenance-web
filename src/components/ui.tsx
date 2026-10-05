@@ -91,7 +91,8 @@ export function Modal({ title, show, onClose, children, size, variant = 'sheet' 
     if (!node) return;
     if (show && !node.open) {
       node.showModal();
-      requestAnimationFrame(() => node.querySelector<HTMLElement>('[autofocus]')?.focus());
+      // React's autoFocus never reaches the DOM for dialogs that stay mounted, so focus the first field instead.
+      requestAnimationFrame(() => node.querySelector<HTMLElement>('[autofocus], .modal-body :is(input:not([type=hidden], [type=file], [type=checkbox]), select, textarea, .date-field-trigger):not(:disabled)')?.focus());
     }
     if (!show && node.open) node.close();
   }, [show]);
