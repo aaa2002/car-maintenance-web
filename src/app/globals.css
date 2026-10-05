@@ -72,7 +72,10 @@ h1, h2, h3 { letter-spacing: -.025em; }
 .mobile-bottom-nav { display: none; }
 .brand-mark { display: inline-flex; align-items: center; gap: 10px; padding-inline: 8px; color: var(--app-text); text-decoration: none; font-size: 1.12rem; font-weight: 680; letter-spacing: -.04em; }
 .brand-mark:hover { color: var(--app-text); }
-.brand-mark-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: var(--app-brand); color: var(--app-on-brand); font-size: .95rem; }
+.brand-mark-svg { width: 38px; height: auto; flex: 0 0 auto; }
+.brand-mark .brand-word { height: 21px; width: auto; }
+.auth-visual .brand-mark-svg { width: 46px; }
+.auth-visual .brand-mark .brand-word { height: 25px; }
 .sidebar-label { display: none; }
 .sidebar-nav { display: grid; gap: 2px; }
 .sidebar-link { display: flex; align-items: center; gap: 11px; min-height: 40px; padding: 8px 12px; border-radius: 999px; color: var(--app-text-muted); text-decoration: none; font-weight: 520; transition: color var(--app-duration-fast), background-color var(--app-duration-fast); }

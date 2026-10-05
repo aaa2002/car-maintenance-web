@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useAuth, useSettings } from './providers';
+import { BrandMark, BrandWordmark } from './brand-logo';
 import { ErrorAlert, StatusPill } from './ui';
 import { AppError } from '@/lib/format';
 import type { StringKey } from '@/i18n/strings';
@@ -50,7 +51,7 @@ export function AuthScreen() {
   return (
     <main className="auth-layout">
       <section className="auth-visual" aria-label="Vehix">
-        <span className="brand-mark text-white"><span className="brand-mark-icon"><i className="bi bi-car-front-fill" /></span><span>Vehix</span></span>
+        <span className="brand-mark text-white"><BrandMark className="brand-mark-svg" /><BrandWordmark className="brand-word" aria-label="Vehix" /></span>
         <div className="auth-copy">
           <h1>{t('welcome')}</h1>
           <p>{t('authSubtitle')}</p>

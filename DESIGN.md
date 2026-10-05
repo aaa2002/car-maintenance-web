@@ -41,6 +41,15 @@ One accent, cool neutrals, and semantic colors that only ever mean status.
 - Never pure black or pure white. Never warm greys next to these cool ones.
 - Body text on any surface keeps at least 4.5:1 contrast.
 
+## Logo
+
+The mark is a V built from two angled blades with a royal blue gradient and a faint facet on each; the wordmark is "vehix" in Poppins Bold with a royal blue i-dot. All variants, sizes and usage notes live in `brand/README.md`; the files are in `brand/svg` (masters) and `brand/png`.
+
+- **In the app:** `src/components/brand-logo.tsx` renders the mark and wordmark inline. The wordmark uses the current text colour, so it follows light and dark mode; the mark keeps its gradient in both.
+- **Sidebar:** mark plus wordmark; the tablet rail shows the mark alone. **Sign-in:** the same lockup in white on navy.
+- **Icons:** favicon, Apple touch icon, PWA icons and the social share card are exported from the same masters (see `brand/README.md`).
+- Never recolour the mark outside the provided variants, stretch it, or set "vehix" in another typeface.
+
 ## 3. Typography Rules
 
 - **Typeface:** Geist (variable), loaded with `next/font` and including the `latin-ext` subset for Romanian (ă, â, î, ș, ț). One family for everything.
