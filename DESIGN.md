@@ -4,7 +4,7 @@ The source of truth for how Vehix looks and moves. Tokens live in `src/theme/tok
 
 ## 1. Visual Theme & Atmosphere
 
-A calm, precise maintenance tool that feels like well-machined hardware: soft silver surfaces sitting in thin trays, one confident cobalt accent, and figures that read at a glance. It is a working app, not a brochure, so density is balanced rather than airy and motion confirms actions instead of performing.
+A calm, precise maintenance tool that feels like well-machined hardware: soft silver surfaces sitting in thin trays, one confident royal blue accent, and figures that read at a glance. It is a working app, not a brochure, so density is balanced rather than airy and motion confirms actions instead of performing.
 
 - **Density 5, "Daily App Balanced":** every screen leads with one primary figure (this month's spend, a vehicle's stats) and keeps supporting data one step quieter.
 - **Variance 5, "Offset Asymmetric":** asymmetric where it earns attention (the Garage summary bento, the sign-in split), predictable everywhere people do repeated work (lists, forms, settings).
@@ -25,19 +25,19 @@ One accent, cool neutrals, and semantic colors that only ever mean status.
 | **Hairline** | `rgba(22,26,40,0.07)` | `rgba(255,255,255,0.07)` | Edges and dividers instead of grey borders |
 | **Ink** | `#111214` | `#EDEDEF` | Primary text |
 | **Steel** | `#5C6069` | `#9A9CA6` | Secondary text, labels, metadata |
-| **Cobalt** (the accent) | `#2A46D4` | `#8FA2FF` | Primary buttons, active nav, focus rings, selected dates, the spend tile |
-| **Cobalt Wash** | `#E7EBFC` | `#1A2042` | Accent backgrounds: icon circles, today's date, scheduled pills |
-| **On Cobalt** | `#FBFBFE` | `#0A0E26` | Text and icons on cobalt fills |
+| **Royal Blue** (the accent) | `#1F55D6` | `#6B9BFF` | Primary buttons, active nav, focus rings, selected dates, the spend tile |
+| **Royal Blue Wash** | `#E6EDFC` | `#11224A` | Accent backgrounds: icon circles, today's date, scheduled pills |
+| **On Royal Blue** | `#FBFBFE` | `#06132E` | Text and icons on royal blue fills |
 | **Trip Grey** | `#9AA0AD` | `#5D6272` | Second chart series (trips), never decorative |
-| **Plate** | `#E4E7F3` | `#1A1E30` | Vehicle tile background when there is no photo |
+| **Plate** | `#E3E9F5` | `#15203A` | Vehicle tile background when there is no photo |
 | **Success** | `#137A4B` | `#5CC995` | Valid documents, completed state |
 | **Warning** | `#9C5200` | `#F0A54C` | Expiring soon, scheduled work, attention counts |
 | **Danger** | `#BF333B` | `#FF7178` | Expired, destructive actions, errors |
 
 **Rules**
-- Cobalt is the only decorative color. If something is colored and is not a status, it is cobalt.
+- Royal Blue is the only decorative color. If something is colored and is not a status, it is royal blue.
 - Status colors always come with their soft background (`--app-*-soft`) as a pill or icon well. Never as a full-bleed fill, never as decoration.
-- Dark mode lightens the accent (`#8FA2FF`) and puts dark text on it. Hierarchy must read the same in both modes.
+- Dark mode lightens the accent (`#6B9BFF`) and puts dark text on it. Hierarchy must read the same in both modes.
 - Never pure black or pure white. Never warm greys next to these cool ones.
 - Body text on any surface keeps at least 4.5:1 contrast.
 
@@ -58,19 +58,19 @@ One accent, cool neutrals, and semantic colors that only ever mean status.
 **Shape rule:** buttons, segmented controls, status pills and toasts are fully round. Inputs use 12px (`--app-radius-control`). Surfaces use 18px (`--app-radius-surface`); dialogs, the sidebar and the file/date trays use 22px.
 
 - **Trays (the "double bezel"):** every major surface (panels, list groups, vehicle tiles, bento tiles, dialogs, the sidebar) uses `--app-bezel`: a hairline, a 5px Tray ring, a second hairline, and a 1px inner highlight. The ring follows the element's radius, so curves stay concentric. Lift comes from very soft, wide shadows tinted toward blue-grey, never from dark drop shadows.
-- **Primary buttons:** Cobalt pill, faint inner highlight, small Cobalt-tinted shadow. Press scales to 0.98. Key actions ("Add vehicle", "Add repair") use the island pattern: the icon sits in its own translucent circle at the trailing edge and nudges on hover.
+- **Primary buttons:** Royal Blue pill, faint inner highlight, small Royal Blue-tinted shadow. Press scales to 0.98. Key actions ("Add vehicle", "Add repair") use the island pattern: the icon sits in its own translucent circle at the trailing edge and nudges on hover.
 - **Secondary buttons:** Soft Surface pill with a hairline edge. Destructive actions are outlined in Danger and fill on hover.
 - **Segmented controls:** a Muted pill track; the active option is a raised Soft Surface pill. Used for status (Done / Scheduled), filters and settings choices.
 - **List rows:** 66px minimum, round icon well on the left, title and Steel subtitle, status pill and amount on the right, chevron that slides 3px on hover. Rows are divided by hairlines.
-- **Vehicle tiles:** 16:9 media, then name, description and mileage. With no photo, the brand name is set large in a faint Cobalt over the Plate color, cropped by the frame. Tiles lift 4px on hover; photos scale to 1.03.
-- **Garage bento:** a tall Cobalt "This month" tile (with a pill link into Spend), two stat tiles beside it, and one wide stat tile below. Exactly as many cells as values.
+- **Vehicle tiles:** 16:9 media, then name, description and mileage. With no photo, the brand name is set large in a faint Royal Blue over the Plate color, cropped by the frame. Tiles lift 4px on hover; photos scale to 1.03.
+- **Garage bento:** a tall Royal Blue "This month" tile (with a pill link into Spend), two stat tiles beside it, and one wide stat tile below. Exactly as many cells as values.
 - **Stat strip:** inline figures separated by hairlines inside one tray, used on the vehicle page. The mileage figure is a button that opens the mileage editor.
-- **Inputs:** Soft Surface fill, hairline edge, faint inset shadow, 46px tall. Focus is a Cobalt edge plus a 3px Cobalt halo. Errors sit below the field in Danger.
-- **Date field:** looks like an input, shows the date written out ("Mon, 5 October 2026") with a Cobalt calendar icon. Opens a calendar in the browser's top layer, so it floats over dialogs. It opens below the field and flips above when there is no room. Inside a tray, days are round, today has a Cobalt outline, the selected day is a filled Cobalt circle. Dates the form would reject are dimmed. Built on `react-day-picker` with English and Romanian locales and Monday as the first day.
-- **File drop:** a dashed well inside a tray with a Cobalt cloud icon and "Drop a file here or browse". While dragging, the tray tints Cobalt Wash. A chosen file becomes a row (name, size, Replace, remove); images show as a preview card. Removing an existing file is undoable until save. Unsupported types are rejected inline.
+- **Inputs:** Soft Surface fill, hairline edge, faint inset shadow, 46px tall. Focus is a Royal Blue edge plus a 3px Royal Blue halo. Errors sit below the field in Danger.
+- **Date field:** looks like an input, shows the date written out ("Mon, 5 October 2026") with a Royal Blue calendar icon. Opens a calendar in the browser's top layer, so it floats over dialogs. It opens below the field and flips above when there is no room. Inside a tray, days are round, today has a Royal Blue outline, the selected day is a filled Royal Blue circle. Dates the form would reject are dimmed. Built on `react-day-picker` with English and Romanian locales and Monday as the first day.
+- **File drop:** a dashed well inside a tray with a Royal Blue cloud icon and "Drop a file here or browse". While dragging, the tray tints Royal Blue Wash. A chosen file becomes a row (name, size, Replace, remove); images show as a preview card. Removing an existing file is undoable until save. Unsupported types are rejected inline.
 - **Dialogs:** 22px tray, no header divider, larger 1.2rem title. On phones they become bottom sheets.
 - **Loading:** skeletons shaped like the final layout (bento, tiles, rows). No spinners except tiny inline refresh indicators.
-- **Empty states:** a round Cobalt icon well, one sentence, and the action that fills the space.
+- **Empty states:** a round Royal Blue icon well, one sentence, and the action that fills the space.
 
 ## 5. Layout Principles
 

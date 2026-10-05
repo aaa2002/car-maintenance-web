@@ -224,8 +224,8 @@ button.stat-item:hover { background: var(--app-surface-hover); }
 
 /* Sign-in */
 .auth-layout { min-height: 100dvh; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(420px, .9fr); }
-.auth-visual { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 48px; overflow: hidden; padding: clamp(32px, 5vw, 64px); color: #eef0f6; background: #0d1020; }
-.auth-visual::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(42 70 212 / 22%), transparent 55%); pointer-events: none; }
+.auth-visual { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 48px; overflow: hidden; padding: clamp(32px, 5vw, 64px); color: #eef0f6; background: #08142c; }
+.auth-visual::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(31 85 214 / 22%), transparent 55%); pointer-events: none; }
 .auth-visual .brand-mark { position: relative; z-index: 1; padding-inline: 0; }
 .auth-copy { position: relative; z-index: 1; max-width: 560px; }
 .auth-copy h1 { margin: 0 0 14px; font-size: clamp(2.4rem, 4.4vw, 3.9rem); font-weight: 640; letter-spacing: -.055em; line-height: 1.02; }

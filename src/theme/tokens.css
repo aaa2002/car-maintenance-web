@@ -1,6 +1,6 @@
 /*
  * Vehix design tokens.
- * Palette: cool zinc neutrals + a single cobalt accent. Semantic colors (success,
+ * Palette: cool zinc neutrals + a single royal blue accent. Semantic colors (success,
  * warning, danger) are reserved for status; everything decorative uses the accent.
  * Shape rule: buttons, segmented controls and pills are fully round; inputs use
  * --app-radius-control; surfaces use --app-radius-surface and sit inside a 5px
@@ -21,12 +21,12 @@
   --app-text-muted: #5c6069;
   --app-border: #e2e2e7;
   --app-border-strong: #cdced5;
-  --app-brand: #2a46d4;
-  --app-brand-hover: #2139b3;
-  --app-brand-soft: #e7ebfc;
+  --app-brand: #1f55d6;
+  --app-brand-hover: #1946b5;
+  --app-brand-soft: #e6edfc;
   --app-on-brand: #fbfbfe;
   --app-chart-2: #9aa0ad;
-  --app-plate: #e4e7f3;
+  --app-plate: #e3e9f5;
   --app-success: #137a4b;
   --app-success-soft: #e4f3eb;
   --app-warning: #9c5200;
@@ -38,7 +38,7 @@
   --app-shadow-sm: 0 1px 1px rgb(30 38 72 / 3%), 0 8px 24px -12px rgb(30 38 72 / 10%);
   --app-shadow-md: 0 2px 4px rgb(30 38 72 / 4%), 0 24px 48px -20px rgb(30 38 72 / 22%);
   --app-shadow-lg: 0 40px 100px -30px rgb(20 26 52 / 35%);
-  --app-glow: rgb(42 70 212 / 9%);
+  --app-glow: rgb(31 85 214 / 9%);
   --bs-body-bg: var(--app-bg);
   --bs-body-color: var(--app-text);
   --bs-body-color-rgb: 17, 18, 20;
@@ -47,7 +47,7 @@
   --bs-tertiary-bg: var(--app-surface-muted);
   --bs-border-color: var(--app-border);
   --bs-primary: var(--app-brand);
-  --bs-primary-rgb: 42, 70, 212;
+  --bs-primary-rgb: 31, 85, 214;
   --bs-success: var(--app-success);
   --bs-warning: var(--app-warning);
   --bs-danger: var(--app-danger);
@@ -70,12 +70,12 @@
   --app-text-muted: #9a9ca6;
   --app-border: #25262c;
   --app-border-strong: #33343c;
-  --app-brand: #8fa2ff;
-  --app-brand-hover: #aab8ff;
-  --app-brand-soft: #1a2042;
-  --app-on-brand: #0a0e26;
+  --app-brand: #6b9bff;
+  --app-brand-hover: #8ab3ff;
+  --app-brand-soft: #11224a;
+  --app-on-brand: #06132e;
   --app-chart-2: #5d6272;
-  --app-plate: #1a1e30;
+  --app-plate: #15203a;
   --app-success: #5cc995;
   --app-success-soft: #10271d;
   --app-warning: #f0a54c;
@@ -87,7 +87,7 @@
   --app-shadow-sm: 0 8px 24px -12px rgb(0 0 0 / 60%);
   --app-shadow-md: 0 24px 48px -20px rgb(0 0 0 / 75%);
   --app-shadow-lg: 0 40px 100px -30px rgb(0 0 0 / 85%);
-  --app-glow: rgb(143 162 255 / 7%);
+  --app-glow: rgb(107 155 255 / 7%);
   --bs-body-bg: var(--app-bg);
   --bs-body-color: var(--app-text);
   --bs-body-color-rgb: 237, 237, 239;
@@ -96,7 +96,7 @@
   --bs-tertiary-bg: var(--app-surface-muted);
   --bs-border-color: var(--app-border);
   --bs-primary: var(--app-brand);
-  --bs-primary-rgb: 143, 162, 255;
+  --bs-primary-rgb: 107, 155, 255;
   --bs-success: var(--app-success);
   --bs-warning: var(--app-warning);
   --bs-danger: var(--app-danger);
