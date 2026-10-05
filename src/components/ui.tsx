@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 import { errorMessage } from '@/lib/format';
+import { useSettings } from './settings-provider';
 
 export function PageHeader({ title, subtitle, eyebrow, action }: { title: string; subtitle?: string; eyebrow?: ReactNode; action?: ReactNode }) {
   return (
@@ -45,12 +46,13 @@ export function Empty({ icon, title, text, action }: { icon: string; title: stri
   );
 }
 
-export function ErrorAlert({ error, onRetry, retryLabel = 'Try again' }: { error: unknown; onRetry?: () => void; retryLabel?: string }) {
+export function ErrorAlert({ error, onRetry, retryLabel }: { error: unknown; onRetry?: () => void; retryLabel?: string }) {
+  const { t } = useSettings();
   return (
     <div className="app-alert mb-4" role="alert">
       <i className="bi bi-exclamation-circle-fill mt-1" />
-      <span className="flex-grow-1">{errorMessage(error)}</span>
-      {onRetry && <button type="button" className="btn btn-sm btn-outline-danger" onClick={onRetry}>{retryLabel}</button>}
+      <span className="flex-grow-1">{errorMessage(error, t)}</span>
+      {onRetry && <button type="button" className="btn btn-sm btn-outline-danger" onClick={onRetry}>{retryLabel ?? t('retry')}</button>}
     </div>
   );
 }
@@ -121,6 +123,7 @@ export function Modal({ title, show, onClose, children, size, variant = 'sheet' 
 }
 
 export function ConfirmButton({ message, title = 'Are you sure?', confirmLabel = 'Delete', cancelLabel = 'Cancel', onConfirm, className = 'btn btn-danger', children }: { message: string; title?: string; confirmLabel?: string; cancelLabel?: string; onConfirm: () => void | Promise<void>; className?: string; children: ReactNode }) {
+  const { t } = useSettings();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>();
@@ -135,7 +138,7 @@ export function ConfirmButton({ message, title = 'Are you sure?', confirmLabel =
   return <>
     <button type="button" className={className} onClick={() => setOpen(true)}>{children}</button>
     <Modal title={title} show={open} onClose={() => !busy && setOpen(false)} variant="modal">
-      <div className="modal-body"><p className="mb-0 text-body-secondary">{message}</p>{Boolean(error) && <div className="app-alert mt-3 mb-0" role="alert">{errorMessage(error)}</div>}</div>
+      <div className="modal-body"><p className="mb-0 text-body-secondary">{message}</p>{Boolean(error) && <div className="app-alert mt-3 mb-0" role="alert">{errorMessage(error, t)}</div>}</div>
       <div className="modal-footer"><button type="button" className="btn btn-outline-secondary" disabled={busy} onClick={() => setOpen(false)}>{cancelLabel}</button><button type="button" className="btn btn-danger" disabled={busy} onClick={confirmAction}>{busy && <span className="spinner-border spinner-border-sm me-2" />}{confirmLabel}</button></div>
     </Modal>
   </>;

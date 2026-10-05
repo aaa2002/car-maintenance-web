@@ -53,7 +53,7 @@ export function VehicleForm({ show, car, onClose, onSave }: { show: boolean; car
       onClose();
     } catch (caught) {
       if (uploaded) await removeObject(CAR_PHOTO_BUCKET, uploaded);
-      setFormError(errorMessage(caught));
+      setFormError(errorMessage(caught, t));
     } finally { setBusy(false); }
   }
 
