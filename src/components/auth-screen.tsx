@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { useAuth, useSettings } from './providers';
 import { BrandMark, BrandWordmark } from './brand-logo';
@@ -16,6 +17,7 @@ const previewRows: PreviewRow[] = [
 
 export function AuthScreen() {
   const { signIn, signUp, resetPassword } = useAuth();
+  const router = useRouter();
   const { t, language, setLanguage } = useSettings();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
@@ -33,8 +35,10 @@ export function AuthScreen() {
     if (password.length < 6) return setError(new AppError('passwordLength'));
     setBusy(true);
     try {
-      if (mode === 'signin') await signIn(email, password);
+      // The sign-in screen renders in place of whatever page was open, so always land on the Garage.
+      if (mode === 'signin') { await signIn(email, password); router.replace('/'); }
       else if (await signUp(email, password, name)) setNotice('checkEmail');
+      else router.replace('/');
     } catch (caught) { setError(caught); }
     finally { setBusy(false); }
   }
