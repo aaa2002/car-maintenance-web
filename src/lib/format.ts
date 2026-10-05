@@ -1,4 +1,5 @@
 import type { Currency } from './database';
+import type { Language, StringKey } from '@/i18n/strings';
 
 export function localDate(value: string, language: 'en' | 'ro' = 'en') {
   const [year, month, day] = value.split('-').map(Number);
@@ -41,13 +42,33 @@ export function monthBounds(offset: number) {
   return { start: toDate(date), next: toDate(next), label: new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(date) };
 }
 
-export function errorMessage(error: unknown) {
-  const message = error instanceof Error ? error.message : 'Something went wrong.';
-  const normalized = message.toLowerCase();
-  if (normalized.includes('invalid login credentials')) return 'The email or password is incorrect.';
-  if (normalized.includes('email not confirmed')) return 'Confirm your email address before signing in.';
-  if (normalized.includes('user already registered')) return 'An account already exists for this email address.';
-  if (normalized.includes('rate limit')) return 'Too many attempts. Wait a moment and try again.';
-  if (normalized.includes('failed to fetch') || normalized.includes('network')) return 'The service could not be reached. Check your connection and try again.';
-  return message;
+// An error whose message is a translation key, so it re-renders in the current language.
+export class AppError extends Error {
+  constructor(readonly key: StringKey) { super(key); }
+}
+
+function errorKey(error: unknown): StringKey | null {
+  if (error instanceof AppError) return error.key;
+  if (!(error instanceof Error)) return 'genericError';
+  const code = 'code' in error && typeof error.code === 'string' ? error.code : '';
+  const normalized = error.message.toLowerCase();
+  if (code === 'invalid_credentials' || normalized.includes('invalid login credentials')) return 'invalidCredentials';
+  if (code === 'email_not_confirmed' || normalized.includes('email not confirmed')) return 'emailNotConfirmed';
+  if (code === 'user_already_exists' || code === 'email_exists' || normalized.includes('user already registered')) return 'userExists';
+  if (code === 'email_address_invalid' || /email address .* is invalid/.test(normalized)) return 'invalidEmail';
+  if (code === 'weak_password') return 'weakPassword';
+  if (code.startsWith('over_') || normalized.includes('rate limit')) return 'rateLimited';
+  if (normalized.includes('failed to fetch') || normalized.includes('network')) return 'networkError';
+  return null;
+}
+
+export function errorMessage(error: unknown, t: (key: StringKey) => string) {
+  const key = errorKey(error);
+  return key ? t(key) : (error as Error).message;
+}
+
+export function countLabel(count: number, language: Language, t: (key: StringKey) => string, key: 'vehicleCount' | 'attentionCount') {
+  const category = new Intl.PluralRules(language).select(count);
+  const form = category === 'one' ? 'One' : category === 'few' ? 'Few' : 'Other';
+  return t(`${key}${form}`).replace('{n}', number(count, language, 0));
 }

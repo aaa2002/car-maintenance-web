@@ -7,7 +7,7 @@ import { useAuth, useSettings } from '@/components/providers';
 import { Empty, ErrorAlert, ListSkeleton, MetricSkeleton, PageHeader, SectionHeader, StatusPill, useToast } from '@/components/ui';
 import { VehicleForm } from '@/components/vehicle-form';
 import { createCar, getCars, getComplianceRecordsForCars, getDailySpendForMonth, getScheduledRepairs, getScheduledTrips, type Car, type ComplianceRecord, type Repair, type Trip } from '@/lib/database';
-import { daysUntil, localDate, money, monthBounds, number } from '@/lib/format';
+import { countLabel, daysUntil, localDate, money, monthBounds, number } from '@/lib/format';
 
 type Attention = {
   key: string;
@@ -100,7 +100,7 @@ export default function GaragePage() {
       <PageHeader
         eyebrow={t('fleetOverview')}
         title={displayName ? `${t('garage')}, ${displayName}` : t('garage')}
-        subtitle={`${cars.length} ${t('vehicles').toLowerCase()} · ${attention.length ? `${attention.length} ${t('attentionItems').toLowerCase()}` : t('noAttention')}`}
+        subtitle={`${countLabel(cars.length, language, t, 'vehicleCount')} · ${attention.length ? countLabel(attention.length, language, t, 'attentionCount') : t('noAttention')}`}
         action={<button className="btn btn-primary" onClick={() => setAdding(true)}><i className="bi bi-plus-lg me-sm-2" /><span className="d-none d-sm-inline">{t('addVehicle')}</span></button>}
       />
       {Boolean(error) && <ErrorAlert error={error} onRetry={() => void load()} retryLabel={t('retry')} />}

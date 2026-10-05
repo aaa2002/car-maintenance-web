@@ -115,6 +115,7 @@ button, input, select, textarea { font: inherit; }
 .skeleton-row { display: flex; align-items: center; gap: 14px; height: 74px; padding: 12px 15px; border-bottom: 1px solid var(--app-border); }
 .skeleton-row:last-child { border: 0; }
 .app-alert { display: flex; align-items: flex-start; gap: 11px; padding: 13px 15px; border: 1px solid color-mix(in srgb, var(--app-danger) 32%, transparent); border-radius: var(--app-radius-md); color: var(--app-danger); background: var(--app-danger-soft); }
+.app-alert.tone-success { border-color: color-mix(in srgb, var(--app-success) 32%, transparent); color: var(--app-success); background: var(--app-success-soft); }
 
 .app-dialog { width: min(560px, calc(100vw - 24px)); max-height: min(820px, calc(100dvh - 24px)); margin: auto; padding: 0; color: var(--app-text); background: var(--app-surface-raised); border: 1px solid var(--app-border-strong); border-radius: var(--app-radius-lg); box-shadow: var(--app-shadow-lg); overflow: hidden; opacity: 0; transform: translateY(10px) scale(.985); transition: opacity var(--app-duration), transform var(--app-duration) var(--app-ease), display var(--app-duration) allow-discrete, overlay var(--app-duration) allow-discrete; }
 .app-dialog[open] { opacity: 1; transform: none; }

@@ -56,7 +56,7 @@ export function RepairForm({ show, carId, repair, defaultMileage, onClose, onSav
       const input = { status, currency: entryCurrency, mileageKm: km, title, date, price: amount, notes: notes || null };
       if (repair) await updateRepair(repair.id, input); else await createRepair({ carId, ...input });
       await onSaved(); onClose();
-    } catch (caught) { setFormError(errorMessage(caught)); }
+    } catch (caught) { setFormError(errorMessage(caught, t)); }
     finally { setBusy(false); }
   }
 
@@ -107,7 +107,7 @@ export function TripForm({ show, carId, trip, onClose, onSaved }: { show: boolea
       const input = { status, currency: entryCurrency, date, distance: km, fuelUsed: liters, gasPrice: unitPrice };
       if (trip) await updateTrip(trip.id, input); else await createTrip({ carId, ...input });
       await onSaved(); onClose();
-    } catch (caught) { setFormError(errorMessage(caught)); }
+    } catch (caught) { setFormError(errorMessage(caught, t)); }
     finally { setBusy(false); }
   }
 
@@ -157,7 +157,7 @@ export function ComplianceForm({ show, carId, kind, record, onClose, onSaved, on
       await onSaved(); onClose();
     } catch (caught) {
       if (uploaded) await removeObject(CAR_DOCUMENT_BUCKET, uploaded);
-      setFormError(errorMessage(caught));
+      setFormError(errorMessage(caught, t));
     } finally { setBusy(false); }
   }
 
