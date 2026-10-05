@@ -197,3 +197,8 @@ export async function getDailySpendForMonth(input: { carId?: number; currency: C
   const rows = unwrapList(result as { data: SpendRow[] | null; error: { message: string } | null }, 'Loading spend');
   return rows.map((row): DailySpend => ({ date: row.date, repairSpend: row.repair_spend ?? 0, tripSpend: row.trip_spend ?? 0 }));
 }
+
+export async function getTotalSpendForCar(carId: number, currency: Currency) {
+  const days = await getDailySpendForMonth({ carId, currency, monthStart: '1900-01-01', nextMonthStart: '2100-01-01' });
+  return days.reduce((sum, day) => sum + day.repairSpend + day.tripSpend, 0);
+}

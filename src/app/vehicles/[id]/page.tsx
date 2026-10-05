@@ -16,6 +16,7 @@ import {
   getCar,
   getComplianceRecordsForCar,
   getRepairsForCar,
+  getTotalSpendForCar,
   getTripsForCar,
   updateCar,
   updateCarMileage,
@@ -42,6 +43,7 @@ export default function VehiclePage() {
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [docs, setDocs] = useState<ComplianceRecord[]>([]);
+  const [totalCost, setTotalCost] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
@@ -68,6 +70,13 @@ export default function VehiclePage() {
   }, [carId, user]);
 
   useEffect(() => { if (user) void load(); }, [load, user]);
+  // Converted server-side with ECB rates; refetched whenever entries or the display currency change.
+  useEffect(() => {
+    if (!user || !Number.isInteger(carId)) return;
+    let cancelled = false;
+    getTotalSpendForCar(carId, currency).then((value) => { if (!cancelled) setTotalCost(value); }).catch(setError);
+    return () => { cancelled = true; };
+  }, [carId, currency, repairs, trips, user]);
   useEffect(() => {
     if (loading || openedQuery.current) return;
     openedQuery.current = true;
@@ -79,11 +88,10 @@ export default function VehiclePage() {
   }, [loading, repairs, trips]);
 
   const metrics = useMemo(() => {
-    const totalCost = repairs.filter((item) => item.status === 'done' && item.currency === currency).reduce((sum, item) => sum + item.price, 0) + trips.filter((item) => item.status === 'done' && item.currency === currency).reduce((sum, item) => sum + (item.price ?? 0), 0);
     const totalDistance = trips.filter((item) => item.status === 'done').reduce((sum, item) => sum + item.distance, 0);
     const fuel = trips.filter((item) => item.status === 'done').reduce((sum, item) => sum + item.fuelUsed, 0);
-    return { totalCost, totalDistance, average: totalDistance > 0 ? fuel / totalDistance * 100 : 0 };
-  }, [repairs, trips, currency]);
+    return { totalDistance, average: totalDistance > 0 ? fuel / totalDistance * 100 : 0 };
+  }, [trips]);
 
   const activity = useMemo(() => {
     const values: Activity[] = [
@@ -128,7 +136,7 @@ export default function VehiclePage() {
         <div className="row g-3">
           <Metric label={t('repairs')} value={String(repairs.length)} />
           <Metric label={t('trips')} value={String(trips.length)} />
-          <Metric label={t('totalCost')} value={money(metrics.totalCost, currency, language)} />
+          <Metric label={t('totalCost')} value={money(totalCost, currency, language)} />
           <Metric label={t('loggedDistance')} value={`${number(metrics.totalDistance, language, 0)} km`} />
           <Metric label={t('avgConsumption')} value={`${number(metrics.average, language)} L/100 km`} />
         </div>
@@ -171,6 +179,6 @@ function TripActivity({ trip, language, onEdit, onDelete }: { trip: Trip; langua
 function MileageModal({ show, initial, onClose, onSave }: { show: boolean; initial: number | null; onClose: () => void; onSave: (value: number | null) => Promise<void> }) {
   const { t } = useSettings(); const [value, setValue] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   useEffect(() => { if (show) { setValue(initial?.toString() ?? ''); setError(''); } }, [show, initial]);
-  async function submit(event: FormEvent) { event.preventDefault(); const parsed = value === '' ? null : Number(value); if (parsed !== null && (!Number.isFinite(parsed) || parsed < 0)) return setError(t('invalidNumber')); setBusy(true); try { await onSave(parsed); onClose(); } catch (caught) { setError(errorMessage(caught)); } finally { setBusy(false); } }
+  async function submit(event: FormEvent) { event.preventDefault(); const parsed = value === '' ? null : Number(value); if (parsed !== null && (!Number.isFinite(parsed) || parsed < 0)) return setError(t('invalidNumber')); setBusy(true); try { await onSave(parsed); onClose(); } catch (caught) { setError(errorMessage(caught, t)); } finally { setBusy(false); } }
   return <Modal title={t('currentMileage')} show={show} onClose={onClose}><form onSubmit={submit}><div className="modal-body"><label className="form-label" htmlFor="current-mileage">{t('mileage')} (km)</label><input id="current-mileage" autoFocus inputMode="numeric" type="number" min="0" step="1" className={`form-control ${error ? 'is-invalid' : ''}`} value={value} onChange={(event) => setValue(event.target.value)} />{error && <div className="invalid-feedback">{error}</div>}</div><div className="modal-footer"><button type="button" className="btn btn-outline-secondary" disabled={busy} onClick={onClose}>{t('cancel')}</button><button className="btn btn-primary" disabled={busy}>{busy && <span className="spinner-border spinner-border-sm me-2" />}{t('save')}</button></div></form></Modal>;
 }
