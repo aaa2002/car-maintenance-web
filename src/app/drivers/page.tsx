@@ -6,7 +6,9 @@ import { AppShell } from '@/components/app-shell';
 import { DriverForm } from '@/components/driver-forms';
 import { useAuth, useSettings } from '@/components/providers';
 import { Empty, ErrorAlert, ListSkeleton, PageHeader, SectionHeader, stagger, StatusPill, useToast } from '@/components/ui';
+import { getFuelUse, type FuelUse } from '@/lib/database';
 import { consumptionOf, contribution, getDriverReport, type DriverReportRow } from '@/lib/drivers';
+import { fuelAlerts } from '@/lib/fleet';
 import { money, monthRange, number } from '@/lib/format';
 
 const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('');
@@ -30,6 +32,7 @@ export default function DriversPage() {
   const { toast } = useToast();
   const [offset, setOffset] = useState(0);
   const [rows, setRows] = useState<DriverReportRow[]>([]);
+  const [fuel, setFuel] = useState<FuelUse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
   const [adding, setAdding] = useState(false);
@@ -38,7 +41,10 @@ export default function DriversPage() {
   const load = useCallback(async () => {
     if (!user) return;
     setError(undefined);
-    try { setRows(await getDriverReport(period.from, period.to, currency)); }
+    try {
+      const [nextRows, nextFuel] = await Promise.all([getDriverReport(period.from, period.to, currency), getFuelUse(period.from, period.to)]);
+      setRows(nextRows); setFuel(nextFuel);
+    }
     catch (caught) { setError(caught); }
     finally { setLoading(false); }
   }, [user, period.from, period.to, currency]);
@@ -49,6 +55,12 @@ export default function DriversPage() {
     open: sum.open + row.outstandingAllTime, fuel: sum.fuel + row.fuelUsed, distance: sum.distance + row.distance,
   }), { active: 0, earnings: 0, income: 0, open: 0, fuel: 0, distance: 0 }), [rows]);
   const fleetConsumption = consumptionOf(totals.fuel, totals.distance);
+  // Highest deviation per driver, against the baseline of the car they drove.
+  const fuelFlags = useMemo(() => {
+    const map = new Map<number, number>();
+    fuelAlerts(fuel).forEach((alert) => { if (alert.driverId && !map.has(alert.driverId)) map.set(alert.driverId, alert.deviation); });
+    return map;
+  }, [fuel]);
   // Ranked by what each driver contributes to the fleet in the period.
   const ranked = useMemo(() => [...rows].sort((a, b) => Number(b.active) - Number(a.active) || contribution(b) - contribution(a)), [rows]);
 
@@ -76,6 +88,7 @@ export default function DriversPage() {
           <button className={!offset ? 'active' : ''} onClick={() => setOffset(0)}>{t('thisMonth')}</button>
           <button aria-label={t('next')} disabled={offset >= 0} onClick={() => setOffset((value) => value + 1)}><i className="bi bi-chevron-right" /></button>
         </div>
+        <Link href="/drivers/import" className="btn btn-sm btn-outline-secondary"><i className="bi bi-upload me-2" />{t('importEarnings')}</Link>
         {rows.length > 0 && <button className="btn btn-sm btn-outline-secondary" onClick={exportCsv}><i className="bi bi-download me-2" />{t('exportCsv')}</button>}
       </div>
       {Boolean(error) && <ErrorAlert error={error} onRetry={() => void load()} />}
@@ -99,7 +112,7 @@ export default function DriversPage() {
                 <Link href={`/drivers/${row.driverId}`} key={row.driverId} className="data-row driver-row reveal" style={stagger(index)}>
                   <span className={`driver-avatar ${row.active ? '' : 'inactive'}`} aria-hidden="true">{initials(row.fullName)}</span>
                   <span className="data-row-main">
-                    <span className="data-row-title">{row.fullName}{!row.active && <span className="ms-2"><StatusPill tone="neutral">{t('inactive')}</StatusPill></span>}</span>
+                    <span className="data-row-title">{row.fullName}{!row.active && <span className="ms-2"><StatusPill tone="neutral">{t('inactive')}</StatusPill></span>}{fuelFlags.has(row.driverId) && <span className="ms-2"><StatusPill tone="warning"><i className="bi bi-fuel-pump me-1" aria-hidden="true" />+{number(fuelFlags.get(row.driverId)! * 100, language, 0)}%</StatusPill></span>}</span>
                     <span className="data-row-subtitle">{row.vehicles ?? t('noVehicleAssigned')}{row.distance > 0 ? ` · ${number(row.distance, language, 0)} km` : ''}{own !== null ? ` · ${number(own, language)} L/100` : ''}</span>
                   </span>
                   <span className="driver-figures">

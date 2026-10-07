@@ -339,6 +339,23 @@ button.stat-item:disabled .bi-pencil { display: none; }
 .bento-spend .metric-value { font-size: clamp(2.4rem, 5vw, 3.6rem); letter-spacing: -.05em; }
 .bento-link { display: inline-flex; align-items: center; gap: 10px; align-self: flex-start; padding: 5px 5px 5px 16px; border-radius: 999px; background: rgb(255 255 255 / 14%); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%); font-size: .88rem; font-weight: 560; }
 .bento-spend:hover .btn-island-icon { transform: translate(2px, -2px) scale(1.06); }
+/* Profit: month to date against last month, with the best and weakest vehicle. */
+.bento-profit { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 2fr); gap: 22px 40px; align-items: center; }
+.profit-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.profit-main .metric-value { font-size: clamp(2rem, 4vw, 2.8rem); letter-spacing: -.04em; }
+.profit-meter { height: 8px; overflow: hidden; border-radius: 999px; background: var(--app-surface-muted); box-shadow: inset 0 0 0 1px var(--app-hairline); }
+.profit-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--app-brand); transform-origin: left; animation: profit-fill 900ms var(--app-ease) both; }
+.profit-meter > span.is-ahead { background: var(--app-success); }
+@keyframes profit-fill { from { transform: scaleX(0); } }
+.profit-breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; min-width: 0; }
+.profit-line { display: flex; flex-direction: column; gap: 4px; }
+.profit-line strong { font-size: 1.15rem; font-weight: 640; }
+.profit-car { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 9px 12px; border-radius: var(--app-radius-control); color: var(--app-text); background: var(--app-surface-muted); font-size: .86rem; text-decoration: none; transition: background-color var(--app-duration-fast); }
+.profit-car:hover { color: var(--app-text); background: var(--app-surface-hover); }
+.profit-car > span { flex: 1; min-width: 0; }
+.profit-car > .bi { color: var(--app-text-muted); }
+@media (prefers-reduced-motion: reduce) { .profit-meter > span { animation: none; } }
+@media (max-width: 767.98px) { .profit-car { grid-column: 1 / -1; } }
 
 /* Date field: a styled trigger plus an inline calendar inside a tray. */
 .date-field-trigger { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer; }
@@ -378,6 +395,7 @@ button.stat-item:disabled .bi-pencil { display: none; }
   .summary-bento { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .bento-spend, .bento-spend-skeleton { grid-row: auto; grid-column: 1 / 3; min-height: 190px; }
   .bento-wide { grid-column: 1 / 3; }
+  .bento-profit { grid-template-columns: 1fr; }
 }
 @media (max-width: 767.98px) {
   .summary-bento { gap: 18px; margin-bottom: 32px; }
@@ -472,3 +490,55 @@ button.stat-item:disabled .bi-pencil { display: none; }
 .vehicle-driver-link.muted { color: var(--app-text-muted); }
 .vehicle-driver-link > .bi-person { color: var(--app-brand); }
 .vehicle-driver-link > .bi-chevron-right { color: var(--app-text-muted); font-size: .75rem; }
+
+/* Fines */
+.fine-pills { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.fine-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 4px; padding-right: 12px; }
+.settlement-fines { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 12px 14px; border-radius: var(--app-radius-control); background: var(--app-surface-muted); }
+.settlement-fines > .bi { color: var(--app-text-muted); }
+@media (max-width: 767.98px) {
+  .fine-row { flex-wrap: wrap; }
+  /* Title on its own line; pills wrap underneath with the amount on the right. */
+  .fine-row .data-row-action > .data-row-main { grid-row: auto; grid-column: 1 / -1; }
+  .fine-row .data-row-action > .fine-pills { justify-content: flex-start; }
+  .fine-actions { width: 100%; justify-content: flex-end; padding: 0 12px 10px; }
+  /* Open weeks carry three actions; they move under the week so the title stays readable. */
+  .settlement-row:has(.settlement-mark-paid) { flex-wrap: wrap; row-gap: 0; }
+  .settlement-row:has(.settlement-mark-paid) > .data-row-action { flex-basis: 100%; }
+  .settlement-row:has(.settlement-mark-paid) > .settlement-mark-paid { margin-left: auto; }
+  .settlement-row:has(.settlement-mark-paid) > :not(.data-row-action) { margin-bottom: 10px; }
+}
+
+/* Weekly statement: a plain document that prints cleanly or saves as PDF. */
+.statement-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.statement-toolbar .back-link { margin-bottom: 0; }
+.statement { max-width: 760px; padding: 28px; }
+.statement-header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; margin-bottom: 8px; padding-bottom: 20px; border-bottom: 1px solid var(--app-hairline); }
+.statement-title { margin: 4px 0; font-size: 1.6rem; font-weight: 680; letter-spacing: -.03em; }
+.statement-header .status-pill { margin-top: 8px; }
+.statement-table { width: 100%; border-collapse: collapse; }
+.statement-table th, .statement-table td { padding: 11px 0; border-bottom: 1px solid var(--app-hairline); font-weight: 500; }
+.statement-table th { text-align: left; }
+.statement-table td { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.statement-sub th, .statement-sub td { padding-block: 6px; color: var(--app-text-muted); font-size: .86rem; }
+.statement-sub th { padding-left: 16px; }
+.statement-total th, .statement-total td { padding-top: 14px; border-top: 2px solid var(--app-text); font-size: 1.1rem; font-weight: 680; }
+@page { margin: 16mm; }
+@media print {
+  .desktop-sidebar, .mobile-bottom-nav, .no-print, .toast-viewport, .app-shell::before { display: none !important; }
+  html, body { background: #fff !important; }
+  .desktop-main { margin: 0; }
+  .content-wrap { width: 100%; padding: 0; animation: none; }
+  .statement { max-width: none; padding: 0; color: #000; background: #fff; box-shadow: none; }
+}
+
+/* Platform import preview */
+.import-table-wrap { overflow-x: auto; }
+.import-table { width: 100%; min-width: 1000px; border-collapse: collapse; font-size: .88rem; }
+.import-table th, .import-table td { padding: 11px 12px; border-bottom: 1px solid var(--app-hairline); vertical-align: middle; }
+.import-table thead th { color: var(--app-text-muted); font-size: .78rem; font-weight: 540; white-space: nowrap; }
+.import-table tbody th { min-width: 170px; font-weight: 560; }
+.import-table tbody td:last-child { min-width: 190px; }
+.import-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.import-table tbody tr:last-child > * { border-bottom: 0; }
+.import-table tr.is-excluded > * { opacity: .45; }

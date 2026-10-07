@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import type { Car, CarInput } from '@/lib/database';
+import { FUEL_TYPES, type Car, type CarInput, type FuelType } from '@/lib/database';
 import { carMakes, modelsForMake } from '@/lib/car-catalog';
 import { errorMessage } from '@/lib/format';
 import { CAR_PHOTO_BUCKET, removeObject, uploadCarPhoto } from '@/lib/storage';
@@ -10,13 +10,15 @@ import { FileDrop } from './file-drop';
 import { useSettings } from './providers';
 import { Modal } from './ui';
 
-type Errors = Partial<Record<'brand' | 'model' | 'year' | 'mileage' | 'photo', string>>;
+type Errors = Partial<Record<'brand' | 'model' | 'year' | 'mileage' | 'photo' | 'vin', string>>;
 
 export function VehicleForm({ show, car, onClose, onSave }: { show: boolean; car?: Car | null; onClose: () => void; onSave: (input: CarInput) => Promise<void> }) {
   const { t } = useSettings();
   const [brand, setBrand] = useState(''); const [model, setModel] = useState('');
   const [year, setYear] = useState(String(new Date().getFullYear())); const [mileage, setMileage] = useState('');
   const [description, setDescription] = useState(''); const [photo, setPhoto] = useState<File | null>(null);
+  const [plate, setPlate] = useState(''); const [vin, setVin] = useState(''); const [fuelType, setFuelType] = useState<FuelType | ''>('');
+  const [euroClass, setEuroClass] = useState(''); const [ridesharing, setRidesharing] = useState(false);
   const [preview, setPreview] = useState<string | null>(null); const [removePhoto, setRemovePhoto] = useState(false);
   const [busy, setBusy] = useState(false); const [errors, setErrors] = useState<Errors>({}); const [formError, setFormError] = useState('');
 
@@ -24,6 +26,7 @@ export function VehicleForm({ show, car, onClose, onSave }: { show: boolean; car
     if (!show) return;
     setBrand(car?.brand ?? ''); setModel(car?.model ?? ''); setYear(String(car?.year ?? new Date().getFullYear()));
     setMileage(car?.mileageKm?.toString() ?? ''); setDescription(car?.description ?? ''); setPhoto(null);
+    setPlate(car?.plateNumber ?? ''); setVin(car?.vin ?? ''); setFuelType(car?.fuelType ?? ''); setEuroClass(car?.euroClass?.toString() ?? ''); setRidesharing(car?.ridesharing ?? false);
     setPreview(car?.photoUrl ?? null); setRemovePhoto(false); setErrors({}); setFormError('');
   }, [show, car]);
 
@@ -46,12 +49,19 @@ export function VehicleForm({ show, car, onClose, onSave }: { show: boolean; car
     if (!Number.isInteger(parsedYear) || parsedYear < 1886 || parsedYear > new Date().getFullYear() + 1) nextErrors.year = `1886-${new Date().getFullYear() + 1}`;
     if (parsedMileage !== null && (!Number.isFinite(parsedMileage) || parsedMileage < 0)) nextErrors.mileage = t('invalidNumber');
     if (photo && photo.size > 10 * 1024 * 1024) nextErrors.photo = t('imageSizeError');
-    setErrors(nextErrors); if (Object.keys(nextErrors).length) return;
+    const cleanVin = vin.toUpperCase().replace(/\s+/g, '');
+    if (cleanVin && !/^[A-HJ-NPR-Z0-9]{17}$/.test(cleanVin)) nextErrors.vin = t('vinInvalid');
+    setErrors(nextErrors);
+    // The dialog scrolls; bring the first invalid field into view.
+    if (Object.keys(nextErrors).length) { requestAnimationFrame(() => document.querySelector<HTMLElement>('dialog[open] .is-invalid')?.focus()); return; }
 
     setBusy(true); let photoPath = removePhoto ? null : car?.photoPath ?? null; let uploaded: string | null = null;
     try {
       if (photo) { uploaded = await uploadCarPhoto(photo); photoPath = uploaded; }
-      await onSave({ brand, model, year: parsedYear, description: description || null, mileageKm: parsedMileage, photoPath });
+      await onSave({
+        brand, model, year: parsedYear, description: description || null, mileageKm: parsedMileage, photoPath,
+        plateNumber: plate || null, vin: cleanVin || null, fuelType: fuelType || null, euroClass: euroClass === '' ? null : Number(euroClass), ridesharing,
+      });
       onClose();
     } catch (caught) {
       if (uploaded) await removeObject(CAR_PHOTO_BUCKET, uploaded);
@@ -70,6 +80,11 @@ export function VehicleForm({ show, car, onClose, onSave }: { show: boolean; car
       <div className="col-sm-6"><label className="form-label required" htmlFor="vehicle-model">{t('model')}</label><ComboField id="vehicle-model" invalid={Boolean(errors.model)} value={model} maxLength={80} onChange={setModel} options={modelsForMake(brand)} />{errors.model && <div className="invalid-feedback">{errors.model}</div>}</div>
       <div className="col-sm-6"><label className="form-label required" htmlFor="vehicle-year">{t('year')}</label><input id="vehicle-year" inputMode="numeric" type="number" min="1886" max={new Date().getFullYear() + 1} className={`form-control ${errors.year ? 'is-invalid' : ''}`} value={year} onChange={(event) => setYear(event.target.value)} />{errors.year && <div className="invalid-feedback">{errors.year}</div>}</div>
       <div className="col-sm-6"><label className="form-label" htmlFor="vehicle-mileage">{t('mileage')} (km)</label><input id="vehicle-mileage" inputMode="numeric" type="number" min="0" step="1" className={`form-control ${errors.mileage ? 'is-invalid' : ''}`} value={mileage} onChange={(event) => setMileage(event.target.value)} />{errors.mileage && <div className="invalid-feedback">{errors.mileage}</div>}</div>
+      <div className="col-sm-6"><label className="form-label" htmlFor="vehicle-plate">{t('plateNumber')}</label><input id="vehicle-plate" className="form-control text-uppercase" maxLength={16} autoComplete="off" placeholder="B 123 ABC" value={plate} onChange={(event) => setPlate(event.target.value)} /></div>
+      <div className="col-sm-6"><label className="form-label" htmlFor="vehicle-vin">{t('vin')}</label><input id="vehicle-vin" className={`form-control text-uppercase ${errors.vin ? 'is-invalid' : ''}`} maxLength={20} autoComplete="off" value={vin} onChange={(event) => setVin(event.target.value)} />{errors.vin && <div className="invalid-feedback">{errors.vin}</div>}</div>
+      <div className="col-sm-6"><label className="form-label" htmlFor="vehicle-fuel">{t('fuelType')}</label><select id="vehicle-fuel" className="form-select" value={fuelType} onChange={(event) => setFuelType(event.target.value as FuelType | '')}><option value="">-</option>{FUEL_TYPES.map((value) => <option key={value} value={value}>{t(`fuel_${value}` as const)}</option>)}</select></div>
+      <div className="col-sm-6"><label className="form-label" htmlFor="vehicle-euro">{t('euroClass')}</label><select id="vehicle-euro" className="form-select" value={euroClass} onChange={(event) => setEuroClass(event.target.value)}><option value="">-</option>{[6, 5, 4, 3, 2, 1, 0].map((value) => <option key={value} value={value}>EURO {value}</option>)}</select></div>
+      <div className="col-12"><div className="form-check form-switch"><input id="vehicle-ridesharing" type="checkbox" role="switch" className="form-check-input" checked={ridesharing} onChange={(event) => setRidesharing(event.target.checked)} /><label className="form-check-label" htmlFor="vehicle-ridesharing">{t('ridesharingVehicle')}</label></div><div className="form-text">{t('ridesharingHint')}</div></div>
       <div className="col-12"><label className="form-label" htmlFor="vehicle-description">{t('description')}</label><textarea id="vehicle-description" className="form-control" rows={3} maxLength={240} value={description} onChange={(event) => setDescription(event.target.value)} /><div className="form-text text-end">{description.length}/240</div></div>
       {formError && <div className="col-12"><div className="app-alert mb-0" role="alert">{formError}</div></div>}
     </div></div>

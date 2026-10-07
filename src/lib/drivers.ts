@@ -1,7 +1,15 @@
 import type { Currency } from './database';
+import type { DriverDocumentKind } from './fleet';
+import { CAR_DOCUMENT_BUCKET, removeObject, signedUrlMap } from './storage';
 import { expectOk, supabase, unwrap, unwrapList } from './supabase';
 
-export type Driver = { id: number; fullName: string; phone: string | null; email: string | null; licenseNumber: string | null; notes: string | null; active: boolean };
+export type Driver = {
+  id: number; fullName: string; phone: string | null; email: string | null; licenseNumber: string | null; notes: string | null; active: boolean;
+  /** Default weekly terms, used when a week is created from a platform export. */
+  weeklyRent: number | null; commissionRate: number | null;
+  /** Names Bolt/Uber exports used for this driver, learned while importing. */
+  platformNames: string[];
+};
 export type Assignment = { id: number; driverId: number; carId: number | null; vehicleLabel: string; startsOn: string; endsOn: string | null; notes: string | null };
 export type SettlementStatus = 'paid' | 'partial' | 'unpaid';
 export type Settlement = {
@@ -18,7 +26,7 @@ export type DriverReportRow = {
   payout: number; settled: number; outstanding: number; outstandingAllTime: number;
 };
 
-type DriverRow = { id: number; full_name: string; phone: string | null; email: string | null; license_number: string | null; notes: string | null; active: boolean };
+type DriverRow = { id: number; full_name: string; phone: string | null; email: string | null; license_number: string | null; notes: string | null; active: boolean; weekly_rent: number | null; commission_rate: number | null; platform_names: string[] | null };
 type AssignmentRow = { id: number; driver_id: number; car_id: number | null; vehicle_label: string; starts_on: string; ends_on: string | null; notes: string | null };
 type SettlementRow = {
   id: number; driver_id: number; car_id: number | null; vehicle_label: string | null; week_start: string; due_date: string; currency: string;
@@ -26,11 +34,14 @@ type SettlementRow = {
   manual_adjustment: number; amount_settled: number; notes: string | null; net_amount: number; outstanding_amount: number; status: string;
 };
 
-const DRIVER_COLUMNS = 'id, full_name, phone, email, license_number, notes, active';
+const DRIVER_COLUMNS = 'id, full_name, phone, email, license_number, notes, active, weekly_rent, commission_rate, platform_names';
 const ASSIGNMENT_COLUMNS = 'id, driver_id, car_id, vehicle_label, starts_on, ends_on, notes';
 const SETTLEMENT_COLUMNS = 'id, driver_id, car_id, vehicle_label, week_start, due_date, currency, bolt_earnings, uber_earnings, fleet_commission, vehicle_rent, expenses, fines, bonuses, manual_adjustment, amount_settled, notes, net_amount, outstanding_amount, status';
 
-const mapDriver = (row: DriverRow): Driver => ({ id: row.id, fullName: row.full_name, phone: row.phone, email: row.email, licenseNumber: row.license_number, notes: row.notes, active: row.active });
+const mapDriver = (row: DriverRow): Driver => ({
+  id: row.id, fullName: row.full_name, phone: row.phone, email: row.email, licenseNumber: row.license_number, notes: row.notes, active: row.active,
+  weeklyRent: row.weekly_rent, commissionRate: row.commission_rate, platformNames: row.platform_names ?? [],
+});
 const mapAssignment = (row: AssignmentRow): Assignment => ({ id: row.id, driverId: row.driver_id, carId: row.car_id, vehicleLabel: row.vehicle_label, startsOn: row.starts_on, endsOn: row.ends_on, notes: row.notes });
 const mapSettlement = (row: SettlementRow): Settlement => ({
   id: row.id, driverId: row.driver_id, carId: row.car_id, vehicleLabel: row.vehicle_label, weekStart: row.week_start, dueDate: row.due_date,
@@ -49,13 +60,26 @@ export async function getDriver(id: number) {
   if (result.error) throw new Error(`Loading driver failed: ${result.error.message}`);
   return result.data ? mapDriver(result.data) : null;
 }
-export type DriverInput = { fullName: string; phone: string | null; email: string | null; licenseNumber: string | null; notes: string | null; active: boolean };
-const driverPayload = (input: DriverInput) => ({ full_name: input.fullName.trim(), phone: input.phone?.trim() || null, email: input.email?.trim() || null, license_number: input.licenseNumber?.trim() || null, notes: input.notes?.trim() || null, active: input.active });
+export type DriverInput = Omit<Driver, 'id' | 'platformNames'>;
+const driverPayload = (input: DriverInput) => ({
+  full_name: input.fullName.trim(), phone: input.phone?.trim() || null, email: input.email?.trim() || null, license_number: input.licenseNumber?.trim() || null,
+  notes: input.notes?.trim() || null, active: input.active, weekly_rent: input.weeklyRent, commission_rate: input.commissionRate,
+});
 export async function createDriver(input: DriverInput) {
   return unwrap(await supabase.from('drivers').insert(driverPayload(input)).select('id').single<{ id: number }>(), 'Adding driver').id;
 }
 export async function updateDriver(id: number, input: DriverInput) { expectOk(await supabase.from('drivers').update(driverPayload(input)).eq('id', id), 'Saving driver'); }
-export async function deleteDriver(id: number) { expectOk(await supabase.from('drivers').delete().eq('id', id), 'Deleting driver'); }
+export async function deleteDriver(id: number) {
+  const documents = unwrapList(await supabase.from('driver_documents').select('attachment_path').eq('driver_id', id).returns<{ attachment_path: string | null }[]>(), 'Loading documents');
+  expectOk(await supabase.from('drivers').delete().eq('id', id), 'Deleting driver');
+  await Promise.allSettled(documents.map((document) => removeObject(CAR_DOCUMENT_BUCKET, document.attachment_path)));
+}
+/** Remembers how a platform export spells this driver's name, so the next import matches it automatically. */
+export async function rememberPlatformNames(driver: Pick<Driver, 'id' | 'platformNames'>, names: string[]) {
+  const next = [...new Set([...driver.platformNames, ...names.map((name) => name.trim()).filter(Boolean)])];
+  if (next.length === driver.platformNames.length) return;
+  expectOk(await supabase.from('drivers').update({ platform_names: next }).eq('id', driver.id), 'Saving driver');
+}
 
 // Assignments
 export async function getAssignmentsForDriver(driverId: number) {
@@ -74,6 +98,9 @@ export async function endAssignment(id: number, endsOn: string) { expectOk(await
 export async function deleteAssignment(id: number) { expectOk(await supabase.from('driver_assignments').delete().eq('id', id), 'Deleting assignment'); }
 
 // Weekly settlements
+export async function getSettlementsForWeek(weekStart: string) {
+  return unwrapList(await supabase.from('weekly_settlements').select(SETTLEMENT_COLUMNS).eq('week_start', weekStart).returns<SettlementRow[]>(), 'Loading settlements').map(mapSettlement);
+}
 export async function getSettlementsForDriver(driverId: number) {
   return unwrapList(await supabase.from('weekly_settlements').select(SETTLEMENT_COLUMNS).eq('driver_id', driverId).order('week_start', { ascending: false }).returns<SettlementRow[]>(), 'Loading settlements').map(mapSettlement);
 }
@@ -122,4 +149,33 @@ export async function driverForCarOn(carId: number, date: string) {
   const { data, error } = await supabase.rpc('driver_for_car_on', { p_car_id: carId, p_date: date });
   if (error) throw new Error(`Loading assigned driver failed: ${error.message}`);
   return (data as number | null) ?? null;
+}
+
+// Driver documents (licence, ARR certificate, medical and psychological clearance, criminal record)
+export type DriverDocument = {
+  id: number; driverId: number; kind: DriverDocumentKind; issuedDate: string; expiresDate: string;
+  attachmentPath: string | null; attachmentUrl: string | null; attachmentName: string | null; attachmentType: string | null;
+};
+type DriverDocumentRow = { id: number; driver_id: number; kind: string; issued_date: string; expires_date: string; attachment_path: string | null; attachment_name: string | null; attachment_type: string | null };
+const DRIVER_DOCUMENT_COLUMNS = 'id, driver_id, kind, issued_date, expires_date, attachment_path, attachment_name, attachment_type';
+export async function getDriverDocuments(driverId?: number) {
+  let query = supabase.from('driver_documents').select(DRIVER_DOCUMENT_COLUMNS).order('expires_date');
+  if (driverId !== undefined) query = query.eq('driver_id', driverId);
+  const rows = unwrapList(await query.returns<DriverDocumentRow[]>(), 'Loading documents');
+  const urls = await signedUrlMap(CAR_DOCUMENT_BUCKET, rows.map((row) => row.attachment_path));
+  return rows.map((row): DriverDocument => ({
+    id: row.id, driverId: row.driver_id, kind: row.kind as DriverDocumentKind, issuedDate: row.issued_date, expiresDate: row.expires_date,
+    attachmentPath: row.attachment_path, attachmentUrl: row.attachment_path ? urls.get(row.attachment_path) ?? null : null,
+    attachmentName: row.attachment_name, attachmentType: row.attachment_type,
+  }));
+}
+export type DriverDocumentInput = { issuedDate: string; expiresDate: string; attachmentPath: string | null; attachmentName: string | null; attachmentType: string | null };
+const driverDocumentPayload = (input: DriverDocumentInput) => ({ issued_date: input.issuedDate, expires_date: input.expiresDate, attachment_path: input.attachmentPath, attachment_name: input.attachmentName, attachment_type: input.attachmentType });
+export async function createDriverDocument(driverId: number, kind: DriverDocumentKind, input: DriverDocumentInput) {
+  return unwrap(await supabase.from('driver_documents').insert({ driver_id: driverId, kind, ...driverDocumentPayload(input) }).select('id').single<{ id: number }>(), 'Saving document').id;
+}
+export async function updateDriverDocument(id: number, input: DriverDocumentInput) { expectOk(await supabase.from('driver_documents').update(driverDocumentPayload(input)).eq('id', id), 'Saving document'); }
+export async function deleteDriverDocument(document: Pick<DriverDocument, 'id' | 'attachmentPath'>) {
+  expectOk(await supabase.from('driver_documents').delete().eq('id', document.id), 'Deleting document');
+  await removeObject(CAR_DOCUMENT_BUCKET, document.attachmentPath);
 }

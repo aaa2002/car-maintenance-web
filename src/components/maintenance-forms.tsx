@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import {
   createComplianceRecord,
   createRepair,
@@ -14,7 +14,8 @@ import {
   type Repair,
   type Trip,
 } from '@/lib/database';
-import { errorMessage, today, tomorrow } from '@/lib/format';
+import { errorMessage, localDate, today, tomorrow } from '@/lib/format';
+import { CAR_DOCUMENTS, defaultValidity, expiryFor, type Validity } from '@/lib/fleet';
 import { CAR_DOCUMENT_BUCKET, removeObject, uploadComplianceAttachment } from '@/lib/storage';
 import { useSettings } from './providers';
 import { getDrivers, driverForCarOn, type Driver } from '@/lib/drivers';
@@ -145,23 +146,38 @@ export function TripForm({ show, carId, trip, onClose, onSaved }: { show: boolea
   </form></Modal>;
 }
 
-export function ComplianceForm({ show, carId, kind, record, onClose, onSaved, onDelete }: { show: boolean; carId: number; kind: ComplianceKind; record?: ComplianceRecord | null; onClose: () => void; onSaved: () => Promise<void>; onDelete?: (record: ComplianceRecord) => Promise<void> }) {
-  const { t } = useSettings();
-  const [issued, setIssued] = useState(today()); const [expires, setExpires] = useState(today());
+type DocumentRecord = { issuedDate: string; expiresDate: string; attachmentPath: string | null; attachmentUrl: string | null; attachmentName: string | null; attachmentType: string | null };
+export type DocumentInput = { issuedDate: string; expiresDate: string; attachmentPath: string | null; attachmentName: string | null; attachmentType: string | null };
+const sameValidity = (a: Validity, b: Validity) => (a.days ?? 0) === (b.days ?? 0) && (a.months ?? 0) === (b.months ?? 0);
+
+/** Any dated document (vehicle or driver): pick a validity preset and the expiry date follows the issue date. */
+export function DocumentForm({ show, idPrefix, title, record, validity, initialValidity, hint, onClose, onSubmit, onDelete }: {
+  show: boolean; idPrefix: string; title: string; record?: DocumentRecord | null; validity: Validity[]; initialValidity: Validity; hint?: ReactNode;
+  onClose: () => void; onSubmit: (input: DocumentInput) => Promise<void>; onDelete?: () => Promise<void>;
+}) {
+  const { t, language } = useSettings();
+  const [issued, setIssued] = useState(today()); const [expires, setExpires] = useState(today()); const [preset, setPreset] = useState<Validity | null>(null);
   const [file, setFile] = useState<File | null>(null); const [remove, setRemove] = useState(false);
   const [busy, setBusy] = useState(false); const [errors, setErrors] = useState<Errors>({}); const [formError, setFormError] = useState('');
 
   useEffect(() => {
     if (!show) return;
-    setIssued(record?.issuedDate ?? today()); setExpires(record?.expiresDate ?? today());
+    // An expired document is being renewed: start from today with the usual validity.
+    const renewing = Boolean(record && record.expiresDate < today());
+    const start = record && !renewing ? record.issuedDate : today();
+    setIssued(start); setExpires(record && !renewing ? record.expiresDate : expiryFor(start, initialValidity)); setPreset(record && !renewing ? null : initialValidity);
     setFile(null); setRemove(false); setErrors({}); setFormError('');
-  }, [show, record]);
+  }, [show, record, initialValidity]);
+
+  function changeIssued(value: string) { setIssued(value); if (preset) setExpires(expiryFor(value, preset)); }
+  function choosePreset(value: Validity) { setPreset(value); setExpires(expiryFor(issued, value)); }
+  const presetLabel = (value: Validity) => value.days ? t('validityDays').replace('{n}', String(value.days)) : value.months! % 12 === 0 && value.months! >= 12 ? t(value.months === 12 ? 'validityYear' : 'validityYears').replace('{n}', String(value.months! / 12)) : t('validityMonths').replace('{n}', String(value.months));
 
   async function submit(event: FormEvent) {
     event.preventDefault(); setFormError(''); const nextErrors: Errors = {};
     if (!issued) nextErrors.issued = t('requiredFields');
     if (!expires || expires < issued) nextErrors.expires = t('expiryDateError');
-    if (file && file.size > 20 * 1024 * 1024) nextErrors.file = 'The attachment must be smaller than 20 MB.';
+    if (file && file.size > 20 * 1024 * 1024) nextErrors.file = t('attachmentSizeError');
     setErrors(nextErrors); if (Object.keys(nextErrors).length) return;
     setBusy(true);
     let path = remove ? null : record?.attachmentPath ?? null;
@@ -170,27 +186,42 @@ export function ComplianceForm({ show, carId, kind, record, onClose, onSaved, on
     let uploaded: string | null = null;
     try {
       if (file) { uploaded = await uploadComplianceAttachment(file); path = uploaded; name = file.name; type = file.type || null; }
-      const input = { issuedDate: issued, expiresDate: expires, attachmentPath: path, attachmentName: name, attachmentType: type };
-      if (record) await updateComplianceRecord(record.id, input); else await createComplianceRecord({ carId, kind, ...input });
+      await onSubmit({ issuedDate: issued, expiresDate: expires, attachmentPath: path, attachmentName: name, attachmentType: type });
       if (record?.attachmentPath && record.attachmentPath !== path) await removeObject(CAR_DOCUMENT_BUCKET, record.attachmentPath);
-      await onSaved(); onClose();
+      onClose();
     } catch (caught) {
       if (uploaded) await removeObject(CAR_DOCUMENT_BUCKET, uploaded);
       setFormError(errorMessage(caught, t));
     } finally { setBusy(false); }
   }
 
-  return <Modal title={`${record ? t('edit') : t('add')} ${kind.toUpperCase()}`} show={show} onClose={onClose}><form onSubmit={submit} noValidate>
+  return <Modal title={title} show={show} onClose={onClose}><form onSubmit={submit} noValidate>
     <div className="modal-body"><div className="row g-3">
-      <div className="col-sm-6"><label className="form-label required" htmlFor={`${kind}-issued`}>{t('issuedDate')}</label><DateField id={`${kind}-issued`} autoFocus invalid={Boolean(errors.issued)} value={issued} onChange={setIssued} /><FieldError error={errors.issued} /></div>
-      <div className="col-sm-6"><label className="form-label required" htmlFor={`${kind}-expires`}>{t('expiresDate')}</label><DateField id={`${kind}-expires`} invalid={Boolean(errors.expires)} min={issued} value={expires} onChange={setExpires} /><FieldError error={errors.expires} /></div>
-      <div className="col-12"><label className="form-label" htmlFor={`${kind}-attachment`}>{t('attachment')}</label><FileDrop id={`${kind}-attachment`} accept="image/*,application/pdf" hint={t('attachmentHint')} invalid={Boolean(errors.file)} file={file} onFile={(next) => { setFile(next); setRemove(false); }} existing={record?.attachmentPath ? { name: record.attachmentName || t('openAttachment'), url: record.attachmentUrl } : null} removed={remove} onRemovedChange={setRemove} />{errors.file && <div className="invalid-feedback">{errors.file}</div>}
+      {record && record.expiresDate < today() && <div className="col-12"><p className="form-text mb-0">{t('renewingHint').replace('{date}', localDate(record.expiresDate, language))}</p></div>}
+      <div className="col-12"><label className="form-label required" htmlFor={`${idPrefix}-issued`}>{t('issuedDate')}</label><DateField id={`${idPrefix}-issued`} autoFocus invalid={Boolean(errors.issued)} value={issued} onChange={changeIssued} /><FieldError error={errors.issued} /></div>
+      {validity.length > 0 && <div className="col-12"><span className="form-label d-block">{t('validFor')}</span><div className="segmented flex-wrap">{validity.map((value) => <button type="button" key={presetLabel(value)} className={preset && sameValidity(preset, value) ? 'active' : ''} aria-pressed={Boolean(preset && sameValidity(preset, value))} onClick={() => choosePreset(value)}>{presetLabel(value)}</button>)}</div></div>}
+      <div className="col-12"><label className="form-label required" htmlFor={`${idPrefix}-expires`}>{t('expiresDate')}</label><DateField id={`${idPrefix}-expires`} invalid={Boolean(errors.expires)} min={issued} value={expires} onChange={(value) => { setExpires(value); setPreset(null); }} /><FieldError error={errors.expires} /></div>
+      {hint && <div className="col-12">{hint}</div>}
+      <div className="col-12"><label className="form-label" htmlFor={`${idPrefix}-attachment`}>{t('attachment')}</label><FileDrop id={`${idPrefix}-attachment`} accept="image/*,application/pdf" hint={t('attachmentHint')} invalid={Boolean(errors.file)} file={file} onFile={(next) => { setFile(next); setRemove(false); }} existing={record?.attachmentPath ? { name: record.attachmentName || t('openAttachment'), url: record.attachmentUrl } : null} removed={remove} onRemovedChange={setRemove} />{errors.file && <div className="invalid-feedback">{errors.file}</div>}
       </div>
       {formError && <div className="col-12"><div className="app-alert mb-0" role="alert">{formError}</div></div>}
     </div></div>
     <div className="modal-footer justify-content-between">
-      {record && onDelete ? <ConfirmButton message={t('confirmDelete')} confirmLabel={t('delete')} cancelLabel={t('cancel')} className="btn btn-outline-danger" onConfirm={() => onDelete(record)}>{t('delete')}</ConfirmButton> : <span />}
+      {record && onDelete ? <ConfirmButton message={t('confirmDelete')} confirmLabel={t('delete')} cancelLabel={t('cancel')} className="btn btn-outline-danger" onConfirm={onDelete}>{t('delete')}</ConfirmButton> : <span />}
       <div className="d-flex gap-2"><button type="button" className="btn btn-outline-secondary" disabled={busy} onClick={onClose}>{t('cancel')}</button><button className="btn btn-primary" disabled={busy}>{busy && <span className="spinner-border spinner-border-sm me-2" />}{t('save')}</button></div>
     </div>
   </form></Modal>;
+}
+
+export function ComplianceForm({ show, carId, kind, ridesharing, record, onClose, onSaved, onDelete }: { show: boolean; carId: number; kind: ComplianceKind; ridesharing: boolean; record?: ComplianceRecord | null; onClose: () => void; onSaved: () => Promise<void>; onDelete?: (record: ComplianceRecord) => Promise<void> }) {
+  const { t } = useSettings();
+  const meta = CAR_DOCUMENTS[kind];
+  const initialValidity = useMemo(() => defaultValidity(kind, ridesharing), [kind, ridesharing]);
+  return <DocumentForm
+    show={show} idPrefix={kind} title={`${record ? (record.expiresDate < today() ? t('renew') : t('edit')) : t('add')} ${t(meta.label)}`} record={record} validity={meta.validity} initialValidity={initialValidity}
+    hint={kind === 'vignette' ? <a className="small" href="https://www.etoll.ro" target="_blank" rel="noreferrer">{t('buyVignette')}<i className="bi bi-box-arrow-up-right ms-1" aria-hidden="true" /></a> : kind === 'itp' && ridesharing ? <p className="form-text mb-0">{t('itpRidesharingHint')}</p> : undefined}
+    onClose={onClose}
+    onSubmit={async (input) => { if (record) await updateComplianceRecord(record.id, input); else await createComplianceRecord({ carId, kind, ...input }); await onSaved(); }}
+    onDelete={record && onDelete ? () => onDelete(record) : undefined}
+  />;
 }
