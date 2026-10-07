@@ -58,6 +58,9 @@ function errorKey(error: unknown): StringKey | null {
   if (code === 'email_address_invalid' || /email address .* is invalid/.test(normalized)) return 'invalidEmail';
   if (code === 'weak_password') return 'weakPassword';
   if (code.startsWith('over_') || normalized.includes('rate limit')) return 'rateLimited';
+  if (normalized.includes('vehicle_limit_reached')) return 'vehicleLimitReached';
+  if (normalized.includes('vehicle_locked')) return 'vehicleLocked';
+  if (normalized.includes('too_many_active_vehicles')) return 'tooManyActiveVehicles';
   if (normalized.includes('failed to fetch') || normalized.includes('network')) return 'networkError';
   return null;
 }
