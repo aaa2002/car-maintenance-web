@@ -58,3 +58,43 @@ command (`npm run build`) are sufficient.
 Add the deployed origin and `https://*.vercel.app/**` preview pattern to Supabase Authentication
 URL Configuration if sign-up confirmation and password-reset links should return to those URLs.
 # car-maintenance-web
+
+## Billing (Stripe)
+
+Plans live in `public.plans`: Free (3 vehicles), Standard (10, 49 RON/month), PRO (30, 99 RON/month) and
+FLEET (60 included for 149 RON/month, then 2 RON per extra vehicle). Prices are monthly, in RON, VAT included.
+
+- **Limits are enforced in the database.** A trigger on `cars` blocks inserts beyond the plan's limit, so the
+  web and Expo apps behave the same.
+- **Downgrades and cancellations take effect at the end of the paid period**, with no credit for the unused time
+  (implemented with a Stripe subscription schedule). Upgrades apply immediately and are invoiced on the spot.
+- **Vehicles above the limit become read-only** once a lower plan applies (after a downgrade, cancellation, or a
+  subscription ending): they stay visible, but the vehicle, its repairs, trips and documents cannot be changed
+  (deleting is allowed). The oldest vehicles stay active by default; users choose which ones in Settings
+  (`set_active_vehicles`). The `cars.locked` flag is maintained by the database and cannot be set through the API.
+- **Edge Functions** (`supabase/functions`) hold all Stripe calls: `billing-checkout` (new subscriptions),
+  `billing-change-plan` (switch plan, cancel at period end, resume), `billing-portal` (card, invoices,
+  cancellation), `stripe-webhook` (mirrors subscriptions into `public.subscriptions`) and `billing-sync`.
+- **FLEET** is a single graduated Stripe price whose quantity is the vehicle count. When a FLEET customer adds or
+  removes vehicles, a statement-level database trigger calls `billing-sync` once per user (via `pg_net`,
+  authenticated with a token stored in Vault). Extra vehicles are invoiced immediately; removing vehicles mid-period
+  is not refunded and lowers the next renewal.
+
+### Setting up a Stripe sandbox
+
+1. Put `STRIPE_SECRET_KEY=sk_test_...` in `.env.local`.
+2. Run `node scripts/stripe-setup.mjs`. It creates (or finds) the products, prices, customer portal configuration
+   and webhook, writes `STRIPE_WEBHOOK_SECRET` to `.env.local`, and prints the price IDs.
+3. Store the price IDs in `public.plans.stripe_price_id` (they differ per Stripe account and mode, so they are data,
+   not a migration).
+4. Add `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` under Edge Functions > Secrets in the Supabase dashboard.
+5. Optional: `APP_ORIGINS` (comma-separated) to allow Checkout redirects to a custom domain. `localhost` and
+   `*.vercel.app` are always allowed.
+
+Test with card `4242 4242 4242 4242`, any future expiry and any CVC.
+
+### Going live
+
+Repeat the setup with a live key in a live-mode account (the script refuses non-test keys, so adapt that guard
+deliberately), store the live price IDs, and replace both Edge Function secrets. Review VAT handling before
+charging real customers.
