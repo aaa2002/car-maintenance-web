@@ -5,11 +5,16 @@ import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
 import { AssignVehicleForm, DriverForm, EndAssignmentForm, SettlementForm } from '@/components/driver-forms';
+import { FineList } from '@/components/fine-list';
+import { FineForm, FinePaidForm } from '@/components/fine-forms';
+import { DocumentForm } from '@/components/maintenance-forms';
 import { useAuth, useSettings } from '@/components/providers';
 import { ConfirmButton, Empty, ErrorAlert, ListSkeleton, PageHeader, SectionHeader, stagger, StatusPill, useToast } from '@/components/ui';
-import { getCars, type Car } from '@/lib/database';
-import { consumptionOf, contribution, deleteAssignment, deleteDriver, deleteSettlement, getAssignmentsForDriver, markSettlementPaid, getDriver, getDriverReport, getSettlementsForDriver, type Assignment, type Driver, type DriverReportRow, type Settlement } from '@/lib/drivers';
-import { localDate, money, monthRange, number } from '@/lib/format';
+import { getCars, getFuelUse, latestDocuments, type Car, type FuelUse } from '@/lib/database';
+import { consumptionOf, contribution, createDriverDocument, deleteAssignment, deleteDriver, deleteDriverDocument, deleteSettlement, getAssignmentsForDriver, getDriver, getDriverDocuments, getDriverReport, getDrivers, getSettlementsForDriver, markSettlementPaid, updateDriverDocument, type Assignment, type Driver, type DriverDocument, type DriverReportRow, type Settlement } from '@/lib/drivers';
+import { defaultValidity, documentState, DRIVER_DOCUMENT_KINDS, DRIVER_DOCUMENTS, fuelAlerts, type DriverDocumentKind } from '@/lib/fleet';
+import { getFines, type Fine } from '@/lib/fines';
+import { localDate, money, monthRange, number, today } from '@/lib/format';
 
 export default function DriverPage() {
   const { id } = useParams<{ id: string }>();
@@ -31,14 +36,24 @@ export default function DriverPage() {
   const [ending, setEnding] = useState<Assignment | null>(null);
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [editingSettlement, setEditingSettlement] = useState<Settlement | null>(null);
+  const [documents, setDocuments] = useState<DriverDocument[]>([]);
+  const [docKind, setDocKind] = useState<DriverDocumentKind | null>(null);
+  const [fines, setFines] = useState<Fine[]>([]);
+  const [allDrivers, setAllDrivers] = useState<Driver[]>([]);
+  const [fineForm, setFineForm] = useState<{ fine: Fine | null } | null>(null);
+  const [payingFine, setPayingFine] = useState<Fine | null>(null);
+  const [fuel, setFuel] = useState<FuelUse[]>([]);
   const period = monthRange(offset, language);
 
   const load = useCallback(async () => {
     if (!user || !Number.isInteger(driverId)) return;
     setError(undefined);
     try {
-      const [nextDriver, nextCars, nextAssignments, nextSettlements] = await Promise.all([getDriver(driverId), getCars(), getAssignmentsForDriver(driverId), getSettlementsForDriver(driverId)]);
+      const [nextDriver, nextCars, nextAssignments, nextSettlements, nextDocuments, nextFines, nextDrivers] = await Promise.all([
+        getDriver(driverId), getCars(), getAssignmentsForDriver(driverId), getSettlementsForDriver(driverId), getDriverDocuments(driverId), getFines({ driverId }), getDrivers(),
+      ]);
       setDriver(nextDriver); setCars(nextCars); setAssignments(nextAssignments); setSettlements(nextSettlements);
+      setDocuments(latestDocuments(nextDocuments, (doc) => doc.driverId)); setFines(nextFines); setAllDrivers(nextDrivers);
     } catch (caught) { setError(caught); }
     finally { setLoading(false); }
   }, [user, driverId]);
@@ -46,7 +61,10 @@ export default function DriverPage() {
 
   const loadReport = useCallback(async () => {
     if (!user) return;
-    try { setReport(await getDriverReport(period.from, period.to, currency)); } catch (caught) { setError(caught); }
+    try {
+      const [nextReport, nextFuel] = await Promise.all([getDriverReport(period.from, period.to, currency), getFuelUse(period.from, period.to)]);
+      setReport(nextReport); setFuel(nextFuel);
+    } catch (caught) { setError(caught); }
   }, [user, period.from, period.to, currency]);
   useEffect(() => { void loadReport(); }, [loadReport, settlements, assignments]);
 
@@ -56,6 +74,10 @@ export default function DriverPage() {
   const own = row ? consumptionOf(row.fuelUsed, row.distance) : null;
   const fleetAverage = consumptionOf(fleet.fuel, fleet.distance);
   const reload = async () => { await load(); };
+  const fuelAlert = fuelAlerts(fuel).find((alert) => alert.driverId === driverId) ?? null;
+  const documentFor = (kind: DriverDocumentKind) => documents.find((doc) => doc.kind === kind) ?? null;
+  const docRecord = docKind ? documentFor(docKind) : null;
+  const docValidity = useMemo(() => (docKind ? defaultValidity(docKind) : { months: 12 }), [docKind]);
   const [markingId, setMarkingId] = useState<number | null>(null);
   async function markPaid(settlement: Settlement) {
     setMarkingId(settlement.id);
@@ -101,7 +123,7 @@ export default function DriverPage() {
       </div>} />
       <div className="app-panel stat-strip">
         <div className="stat-item"><span className="metric-label">{t('loggedDistance')}</span><strong className="metric-value">{number(row?.distance ?? 0, language, 0)} km</strong></div>
-        <div className="stat-item"><span className="metric-label">{t('avgConsumption')}</span><strong className="metric-value">{own === null ? '-' : `${number(own, language)} L/100`}</strong>{fleetAverage !== null && <span className="small text-body-secondary num">{t('fleetAverage').replace('{value}', `${number(fleetAverage, language)} L/100`)}</span>}</div>
+        <div className="stat-item"><span className="metric-label">{t('avgConsumption')}</span><strong className="metric-value">{own === null ? '-' : `${number(own, language)} L/100`}</strong>{fuelAlert ? <span className="small text-warning num">{t('fuelVsUsual').replace('{n}', number(fuelAlert.deviation * 100, language, 0)).replace('{baseline}', number(fuelAlert.baseline!, language))}</span> : fleetAverage !== null && <span className="small text-body-secondary num">{t('fleetAverage').replace('{value}', `${number(fleetAverage, language)} L/100`)}</span>}</div>
         <div className="stat-item"><span className="metric-label">{t('earnings')}</span><strong className="metric-value">{money(row?.grossEarnings ?? 0, currency, language)}</strong></div>
         <div className="stat-item"><span className="metric-label">{t('contribution')}</span><strong className="metric-value">{money(row ? contribution(row) : 0, currency, language)}</strong></div>
         <div className="stat-item"><span className="metric-label">{balanceLabel(row?.outstandingAllTime ?? 0)}</span><strong className="metric-value">{money(Math.abs(row?.outstandingAllTime ?? 0), currency, language)}</strong></div>
@@ -111,7 +133,7 @@ export default function DriverPage() {
       <section className="section-gap">
         <SectionHeader title={t('settlements')} action={<button className="btn btn-sm btn-primary" onClick={() => { setEditingSettlement(null); setSettlementOpen(true); }}><i className="bi bi-plus-lg me-1" />{t('addSettlement')}</button>} />
         {settlements.length ? <div className="data-list">{settlements.map((settlement, index) => (
-          <div className="data-row p-0 reveal" style={stagger(index)} key={settlement.id}>
+          <div className="data-row settlement-row p-0 reveal" style={stagger(index)} key={settlement.id}>
             <button className="data-row-action px-3 py-2" onClick={() => { setEditingSettlement(settlement); setSettlementOpen(true); }}>
               <span className={`row-icon tone-${statusTone[settlement.status]}`}><i className="bi bi-calendar-week" /></span>
               <span className="data-row-main"><span className="data-row-title">{t('weekOf').replace('{date}', localDate(settlement.weekStart, language))}</span><span className="data-row-subtitle">{settlement.vehicleLabel ?? '-'} · {balanceLabel(settlement.netAmount)} {money(Math.abs(settlement.netAmount), settlement.currency, language)}</span></span>
@@ -119,9 +141,25 @@ export default function DriverPage() {
               {Math.abs(settlement.outstandingAmount) > 0.005 && <strong className="text-tabular text-nowrap">{money(Math.abs(settlement.outstandingAmount), settlement.currency, language)}</strong>}
             </button>
             {settlement.status !== 'paid' && <button className="btn btn-sm btn-outline-secondary settlement-mark-paid" disabled={markingId === settlement.id} onClick={() => void markPaid(settlement)}><i className="bi bi-check2 me-sm-1" /><span className="d-none d-sm-inline">{t('markPaid')}</span><span className="visually-hidden d-sm-none">{t('markPaid')}</span></button>}
+            <Link href={`/drivers/${driver.id}/statement?week=${settlement.weekStart}`} className="icon-button" title={t('statement')}><i className="bi bi-file-earmark-text" /><span className="visually-hidden">{t('statement')}</span></Link>
             <ConfirmButton message={t('confirmDelete')} confirmLabel={t('delete')} cancelLabel={t('cancel')} className="icon-button danger me-2" onConfirm={async () => { await deleteSettlement(settlement.id); await reload(); toast(t('deletedItem')); }}><i className="bi bi-trash" /><span className="visually-hidden">{t('delete')}</span></ConfirmButton>
           </div>
         ))}</div> : <div className="app-panel"><Empty icon="bi-calendar-week" title={t('noSettlements')} /></div>}
+      </section>
+
+      <section className="section-gap">
+        <SectionHeader title={t('driverDocuments')} />
+        <div className="row g-3">{DRIVER_DOCUMENT_KINDS.map((kind) => {
+          const doc = documentFor(kind); const state = documentState(doc?.expiresDate);
+          const tone = state === 'missing' ? 'neutral' : state === 'expired' ? 'danger' : state === 'soon' ? 'warning' : 'success';
+          const label = state === 'missing' ? t('noDocument') : state === 'expired' ? t('expired') : state === 'soon' ? t('expiresSoon') : t('valid');
+          return <div className="col-md-6" key={kind}><button className="app-panel data-row w-100 text-start" onClick={() => setDocKind(kind)}><span className={`row-icon tone-${tone}`}><i className={`bi ${DRIVER_DOCUMENTS[kind].icon}`} /></span><span className="data-row-main"><span className="data-row-title">{t(DRIVER_DOCUMENTS[kind].label)}</span><span className="data-row-subtitle">{doc ? `${t('validUntil')} ${localDate(doc.expiresDate, language)}` : t('addDocument')}</span></span><StatusPill tone={tone}>{label}</StatusPill><i className="bi bi-chevron-right text-body-secondary" /></button></div>;
+        })}</div>
+      </section>
+
+      <section className="section-gap">
+        <SectionHeader title={t('fines')} action={cars.length > 0 && <button className="btn btn-sm btn-outline-secondary" onClick={() => setFineForm({ fine: null })}><i className="bi bi-plus-lg me-1" />{t('addFine')}</button>} />
+        {fines.length ? <FineList fines={fines} cars={cars} drivers={allDrivers} showDriver={false} onEdit={(fine) => setFineForm({ fine })} onPay={setPayingFine} onChanged={reload} /> : <div className="app-panel"><Empty icon="bi-receipt" title={t('noFines')} /></div>}
       </section>
 
       <section className="section-gap">
@@ -141,7 +179,15 @@ export default function DriverPage() {
       <DriverForm show={editing} driver={driver} onClose={() => setEditing(false)} onSave={async () => { await reload(); toast(t('driverSaved')); }} />
       <AssignVehicleForm show={assigning} driverId={driver.id} cars={cars} currentCarId={current?.carId ?? null} onClose={() => setAssigning(false)} onSaved={async () => { await reload(); toast(t('assigned')); }} />
       <EndAssignmentForm assignment={ending} onClose={() => setEnding(null)} onSaved={async () => { await reload(); toast(t('assignmentEnded')); }} />
-      <SettlementForm show={settlementOpen} driverId={driver.id} settlement={editingSettlement} cars={cars} defaultCarId={current?.carId ?? null} onClose={() => setSettlementOpen(false)} onSaved={async () => { await reload(); toast(t('settlementSaved')); }} />
+      <SettlementForm show={settlementOpen} driver={driver} settlement={editingSettlement} cars={cars} defaultCarId={current?.carId ?? null} onClose={() => setSettlementOpen(false)} onSaved={async () => { await reload(); toast(t('settlementSaved')); }} />
+      <FineForm show={fineForm !== null} fine={fineForm?.fine ?? null} cars={cars} drivers={allDrivers} defaultCarId={current?.carId ?? null} onClose={() => setFineForm(null)} onSaved={async () => { await reload(); toast(t('fineSaved')); }} />
+      <FinePaidForm fine={payingFine} onClose={() => setPayingFine(null)} onSaved={async () => { await reload(); toast(t('fineSaved')); }} />
+      <DocumentForm
+        show={docKind !== null} idPrefix={`driver-${docKind ?? 'doc'}`} title={docKind ? `${docRecord ? (docRecord.expiresDate < today() ? t('renew') : t('edit')) : t('add')} ${t(DRIVER_DOCUMENTS[docKind].label)}` : ''}
+        record={docRecord} validity={docKind ? DRIVER_DOCUMENTS[docKind].validity : []} initialValidity={docValidity} onClose={() => setDocKind(null)}
+        onSubmit={async (input) => { if (!docKind) return; if (docRecord) await updateDriverDocument(docRecord.id, input); else await createDriverDocument(driver.id, docKind, input); await reload(); toast(t('documentSaved')); }}
+        onDelete={docRecord ? async () => { await deleteDriverDocument(docRecord); await reload(); setDocKind(null); toast(t('deletedItem')); } : undefined}
+      />
     </>}
   </AppShell>;
 }

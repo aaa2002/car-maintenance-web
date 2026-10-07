@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AppShell } from '@/components/app-shell';
+import { FineList } from '@/components/fine-list';
+import { FineForm, FinePaidForm } from '@/components/fine-forms';
 import { ComplianceForm, RepairForm, TripForm } from '@/components/maintenance-forms';
+import { CompleteServiceForm, ServicePlanForm } from '@/components/service-forms';
 import { useAuth, useSettings } from '@/components/providers';
 import { ConfirmButton, Empty, ErrorAlert, ListSkeleton, Modal, PageHeader, SectionHeader, stagger, StatusPill, useToast } from '@/components/ui';
 import { VehicleForm } from '@/components/vehicle-form';
@@ -12,22 +15,28 @@ import {
   deleteCar,
   deleteComplianceRecord,
   deleteRepair,
+  deleteServicePlan,
   deleteTrip,
   getCar,
   getComplianceRecordsForCar,
   getRepairsForCar,
+  getServicePlans,
   getTotalSpendForCar,
   getTripsForCar,
   updateCar,
+  latestDocuments,
   updateCarMileage,
   type Car,
   type ComplianceKind,
   type ComplianceRecord,
   type Repair,
+  type ServicePlan,
   type Trip,
 } from '@/lib/database';
-import { getCurrentAssignments, getDrivers } from '@/lib/drivers';
-import { daysUntil, errorMessage, localDate, money, number } from '@/lib/format';
+import { getCurrentAssignments, getDrivers, type Driver } from '@/lib/drivers';
+import { CAR_DOCUMENTS, dailyKm, documentState, estimatedMileage, optionalCarDocuments, requiredCarDocuments, serviceDue } from '@/lib/fleet';
+import { getFines, type Fine } from '@/lib/fines';
+import { errorMessage, localDate, money, number } from '@/lib/format';
 import { CAR_DOCUMENT_BUCKET, CAR_PHOTO_BUCKET, removeObject } from '@/lib/storage';
 
 type ActivityFilter = 'all' | 'repairs' | 'trips';
@@ -45,6 +54,14 @@ export default function VehiclePage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [docs, setDocs] = useState<ComplianceRecord[]>([]);
   const [currentDriver, setCurrentDriver] = useState<{ id: number; name: string } | null>(null);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [plans, setPlans] = useState<ServicePlan[]>([]);
+  const [fines, setFines] = useState<Fine[]>([]);
+  const [planForm, setPlanForm] = useState<{ plan: ServicePlan | null } | null>(null);
+  const [completing, setCompleting] = useState<ServicePlan | null>(null);
+  const [fineForm, setFineForm] = useState<{ fine: Fine | null } | null>(null);
+  const [payingFine, setPayingFine] = useState<Fine | null>(null);
+  const [addDocOpen, setAddDocOpen] = useState(false);
   const [totalCost, setTotalCost] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
@@ -63,10 +80,12 @@ export default function VehiclePage() {
     if (!silent) setLoading(true);
     setError(undefined);
     try {
-      const [loadedCar, loadedRepairs, loadedTrips, loadedDocs, openAssignments, drivers] = await Promise.all([
-        getCar(carId), getRepairsForCar(carId), getTripsForCar(carId), getComplianceRecordsForCar(carId), getCurrentAssignments(), getDrivers(),
+      const [loadedCar, loadedRepairs, loadedTrips, loadedDocs, openAssignments, loadedDrivers, loadedPlans, loadedFines] = await Promise.all([
+        getCar(carId), getRepairsForCar(carId), getTripsForCar(carId), getComplianceRecordsForCar(carId), getCurrentAssignments(), getDrivers(), getServicePlans(carId), getFines({ carId }),
       ]);
-      setCar(loadedCar); setRepairs(loadedRepairs); setTrips(loadedTrips); setDocs(loadedDocs);
+      setCar(loadedCar); setRepairs(loadedRepairs); setTrips(loadedTrips); setDocs(latestDocuments(loadedDocs, (doc) => doc.carId));
+      setDrivers(loadedDrivers); setPlans(loadedPlans); setFines(loadedFines);
+      const drivers = loadedDrivers;
       const assignment = openAssignments.find((value) => value.carId === carId);
       const driver = assignment && drivers.find((value) => value.id === assignment.driverId);
       setCurrentDriver(driver ? { id: driver.id, name: driver.fullName } : null);
@@ -89,7 +108,7 @@ export default function VehiclePage() {
     const repairId = Number(query.get('repair')); const tripId = Number(query.get('trip')); const kind = query.get('document');
     if (repairId) { const item = repairs.find((value) => value.id === repairId); if (item) { setEditingRepair(item); setRepairOpen(true); } }
     else if (tripId) { const item = trips.find((value) => value.id === tripId); if (item) { setEditingTrip(item); setTripOpen(true); } }
-    else if (kind === 'itp' || kind === 'rca') setDocKind(kind);
+    else if (kind && kind in CAR_DOCUMENTS) setDocKind(kind as ComplianceKind);
   }, [loading, repairs, trips]);
 
   const metrics = useMemo(() => {
@@ -107,6 +126,10 @@ export default function VehiclePage() {
   }, [repairs, trips, activityFilter]);
 
   const documentFor = (kind: ComplianceKind) => docs.find((item) => item.kind === kind) ?? null;
+  const rate = useMemo(() => dailyKm(trips, carId), [trips, carId]);
+  const odometer = car ? estimatedMileage(car, rate) : null;
+  const documentKinds = car ? [...requiredCarDocuments(car), ...optionalCarDocuments(car).filter((kind) => documentFor(kind))] : [];
+  const missingOptional = car ? optionalCarDocuments(car).filter((kind) => !documentFor(kind)) : [];
   if (!Number.isInteger(carId)) return <AppShell><ErrorAlert error={new Error('Invalid vehicle ID.')} /></AppShell>;
 
   return <AppShell>
@@ -115,7 +138,7 @@ export default function VehiclePage() {
       <PageHeader
         back={<Link href="/" className="back-link"><i className="bi bi-arrow-left" />{t('garage')}</Link>}
         title={`${car.brand} ${car.model}`}
-        subtitle={`${car.year}${car.description ? ` · ${car.description}` : ''}`}
+        subtitle={[car.plateNumber, car.year, car.description].filter(Boolean).join(' · ')}
         action={<button className="btn btn-outline-secondary" disabled={car.locked} onClick={() => setEditVehicle(true)}><i className="bi bi-pencil me-sm-2" /><span className="d-none d-sm-inline">{t('edit')}</span></button>}
       />
 
@@ -133,6 +156,7 @@ export default function VehiclePage() {
       <div className="toolbar" hidden={car.locked}>
         <button className="btn btn-primary btn-island" onClick={() => { setEditingRepair(null); setRepairOpen(true); }}>{t('add')} {t('repair').toLowerCase()}<span className="btn-island-icon"><i className="bi bi-tools" /></span></button>
         <button className="btn btn-outline-secondary" onClick={() => { setEditingTrip(null); setTripOpen(true); }}><i className="bi bi-signpost-split me-2" />{t('add')} {t('trip').toLowerCase()}</button>
+        <button className="btn btn-outline-secondary" onClick={() => setFineForm({ fine: null })}><i className="bi bi-receipt me-2" />{t('addFine')}</button>
       </div>
 
       {car.photoUrl && <div className="app-panel section-gap"><img src={car.photoUrl} alt={`${car.brand} ${car.model}`} className="vehicle-photo" /></div>}
@@ -148,14 +172,41 @@ export default function VehiclePage() {
       </div>
 
       <section className="section-gap">
-        <SectionHeader title={t('documents')} />
-        <div className="row g-4">{(['itp', 'rca'] as const).map((kind) => {
-          const doc = documentFor(kind); const days = doc ? daysUntil(doc.expiresDate) : null;
-          const tone = days === null ? 'neutral' : days < 0 ? 'danger' : days <= 7 ? 'warning' : 'success';
-          const label = doc ? (days! < 0 ? t('expired') : days! <= 7 ? t('expiresSoon') : t('valid')) : t('noDocument');
-          return <div className="col-md-6" key={kind}><button className="app-panel data-row w-100 text-start" onClick={() => setDocKind(kind)}><span className={`row-icon tone-${tone}`}><i className={`bi ${kind === 'itp' ? 'bi-clipboard2-check' : 'bi-shield-check'}`} /></span><span className="data-row-main"><span className="data-row-title">{kind.toUpperCase()}</span><span className="data-row-subtitle">{doc ? localDate(doc.expiresDate, language) : t('addDocument')}</span></span><StatusPill tone={tone}>{label}</StatusPill><i className="bi bi-chevron-right text-body-secondary" /></button></div>;
+        <SectionHeader title={t('documents')} action={!car.locked && missingOptional.length > 0 && <button className="btn btn-sm btn-outline-secondary" onClick={() => setAddDocOpen(true)}><i className="bi bi-plus-lg me-1" />{t('addDocument')}</button>} />
+        <div className="row g-3">{documentKinds.map((kind) => {
+          const doc = documentFor(kind); const state = documentState(doc?.expiresDate);
+          const tone = state === 'missing' ? 'neutral' : state === 'expired' ? 'danger' : state === 'soon' ? 'warning' : 'success';
+          const label = state === 'missing' ? t('noDocument') : state === 'expired' ? t('expired') : state === 'soon' ? t('expiresSoon') : t('valid');
+          return <div className="col-md-6" key={kind}><button className="app-panel data-row w-100 text-start" disabled={car.locked && !doc} onClick={() => setDocKind(kind)}><span className={`row-icon tone-${tone}`}><i className={`bi ${CAR_DOCUMENTS[kind].icon}`} /></span><span className="data-row-main"><span className="data-row-title">{t(CAR_DOCUMENTS[kind].label)}</span><span className="data-row-subtitle">{doc ? `${t('validUntil')} ${localDate(doc.expiresDate, language)}` : t('addDocument')}</span></span><StatusPill tone={tone}>{label}</StatusPill><i className="bi bi-chevron-right text-body-secondary" /></button></div>;
         })}</div>
+        {car.ridesharing && <p className="small text-body-secondary mt-3 mb-0">{t('ridesharingDocumentsHint')}</p>}
       </section>
+
+      <section className="section-gap">
+        <SectionHeader title={t('serviceSchedule')} action={!car.locked && <button className="btn btn-sm btn-outline-secondary" onClick={() => setPlanForm({ plan: null })}><i className="bi bi-plus-lg me-1" />{t('addServicePlan')}</button>} />
+        {plans.length ? <div className="data-list">{plans.map((plan, index) => {
+          const due = serviceDue(plan, odometer, rate);
+          const tone = due.state === 'overdue' ? 'danger' : due.state === 'soon' ? 'warning' : due.state === 'unknown' ? 'neutral' : 'success';
+          const interval = [plan.intervalKm ? `${number(plan.intervalKm, language, 0)} km` : null, plan.intervalMonths ? `${plan.intervalMonths} ${t('monthsShort')}` : null].filter(Boolean).join(` ${t('or')} `);
+          const dueText = due.state === 'unknown' ? t('lastServiceUnknown')
+            : [due.kmLeft !== null ? (due.kmLeft < 0 ? t('kmOverdue').replace('{n}', number(-due.kmLeft, language, 0)) : t('kmLeft').replace('{n}', number(due.kmLeft, language, 0))) : null,
+              due.dueDate ? `${t('dueAround')} ${localDate(due.dueDate, language)}` : null].filter(Boolean).join(' · ');
+          return <div className="data-row p-0 reveal" style={stagger(index)} key={plan.id}>
+            <button className="data-row-action px-3 py-2" disabled={car.locked} onClick={() => setPlanForm({ plan })}>
+              <span className={`row-icon tone-${tone}`}><i className="bi bi-wrench-adjustable" /></span>
+              <span className="data-row-main"><span className="data-row-title">{plan.title}</span><span className="data-row-subtitle">{t('every')} {interval} · {dueText}</span></span>
+              <StatusPill tone={tone}>{t(`service_${due.state}` as const)}</StatusPill>
+            </button>
+            {!car.locked && <button type="button" className="btn btn-sm btn-outline-secondary me-2 text-nowrap" onClick={() => setCompleting(plan)}><i className="bi bi-check2 me-sm-1" /><span className="d-none d-sm-inline">{t('logService')}</span><span className="visually-hidden d-sm-none">{t('logService')}</span></button>}
+          </div>;
+        })}</div> : <div className="app-panel"><Empty icon="bi-wrench-adjustable" title={t('noServicePlans')} text={t('noServicePlansHint')} action={!car.locked && <button className="btn btn-primary" onClick={() => setPlanForm({ plan: null })}>{t('addServicePlan')}</button>} /></div>}
+        {plans.length > 0 && <p className="small text-body-secondary mt-3 mb-0">{rate ? t('serviceRateHint').replace('{km}', number(rate * 7, language, 0)).replace('{odometer}', odometer === null ? '-' : number(odometer, language, 0)) : t('serviceNoRateHint')}</p>}
+      </section>
+
+      {fines.length > 0 && <section className="section-gap">
+        <SectionHeader title={t('fines')} action={<button className="btn btn-sm btn-outline-secondary" onClick={() => setFineForm({ fine: null })}><i className="bi bi-plus-lg me-1" />{t('addFine')}</button>} />
+        <FineList fines={fines} cars={[car]} drivers={drivers} showCar={false} onEdit={(fine) => setFineForm({ fine })} onPay={setPayingFine} onChanged={() => load(true)} />
+      </section>}
 
       <section className="section-gap">
         <SectionHeader title={t('activity')} action={<div className="segmented">{(['all', 'repairs', 'trips'] as const).map((value) => <button key={value} className={activityFilter === value ? 'active' : ''} aria-pressed={activityFilter === value} onClick={() => setActivityFilter(value)}>{value === 'all' ? t('allActivity') : `${t(value)} ${value === 'repairs' ? repairs.length : trips.length}`}</button>)}</div>} />
@@ -168,7 +219,14 @@ export default function VehiclePage() {
       <MileageModal show={mileageOpen} initial={car.mileageKm} onClose={() => setMileageOpen(false)} onSave={async (value) => { await updateCarMileage(car.id, value); await load(true); toast(t('mileageSaved')); }} />
       <RepairForm show={repairOpen} carId={car.id} repair={editingRepair} defaultMileage={car.mileageKm} onClose={() => setRepairOpen(false)} onSaved={async () => { await load(true); toast(t('repairSaved')); }} />
       <TripForm show={tripOpen} carId={car.id} trip={editingTrip} onClose={() => setTripOpen(false)} onSaved={async () => { await load(true); toast(t('tripSaved')); }} />
-      {docKind && <ComplianceForm show carId={car.id} kind={docKind} record={documentFor(docKind)} onClose={() => setDocKind(null)} onSaved={async () => { await load(true); toast(t('documentSaved')); }} onDelete={async (record) => { await deleteComplianceRecord(record.id); await removeObject(CAR_DOCUMENT_BUCKET, record.attachmentPath); await load(true); setDocKind(null); toast(t('deletedItem')); }} />}
+      <ServicePlanForm show={planForm !== null} carId={car.id} plan={planForm?.plan ?? null} currentMileage={odometer} onClose={() => setPlanForm(null)} onSaved={async () => { await load(true); toast(t('servicePlanSaved')); }} onDelete={async (plan) => { await deleteServicePlan(plan.id); await load(true); toast(t('deletedItem')); }} />
+      <CompleteServiceForm plan={completing} estimatedKm={odometer} onClose={() => setCompleting(null)} onSaved={async () => { await load(true); toast(t('serviceLogged')); }} />
+      <FineForm show={fineForm !== null} fine={fineForm?.fine ?? null} cars={[car]} drivers={drivers} defaultCarId={car.id} onClose={() => setFineForm(null)} onSaved={async () => { await load(true); toast(t('fineSaved')); }} />
+      <FinePaidForm fine={payingFine} onClose={() => setPayingFine(null)} onSaved={async () => { await load(true); toast(t('fineSaved')); }} />
+      <Modal title={t('addDocument')} show={addDocOpen} onClose={() => setAddDocOpen(false)} variant="modal">
+        <div className="modal-body"><div className="data-list">{missingOptional.map((kind) => <button key={kind} className="data-row w-100 text-start" onClick={() => { setAddDocOpen(false); setDocKind(kind); }}><span className="row-icon"><i className={`bi ${CAR_DOCUMENTS[kind].icon}`} /></span><span className="data-row-main"><span className="data-row-title">{t(CAR_DOCUMENTS[kind].label)}</span></span><i className="bi bi-chevron-right text-body-secondary" /></button>)}</div></div>
+      </Modal>
+      {docKind && <ComplianceForm show carId={car.id} kind={docKind} ridesharing={car.ridesharing} record={documentFor(docKind)} onClose={() => setDocKind(null)} onSaved={async () => { await load(true); toast(t('documentSaved')); }} onDelete={async (record) => { await deleteComplianceRecord(record.id); await removeObject(CAR_DOCUMENT_BUCKET, record.attachmentPath); await load(true); setDocKind(null); toast(t('deletedItem')); }} />}
     </>}
   </AppShell>;
 }
