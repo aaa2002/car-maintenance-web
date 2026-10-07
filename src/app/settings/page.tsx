@@ -1,8 +1,9 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
+import { PlanSection } from '@/components/plan-section';
 import { useAuth, useSettings } from '@/components/providers';
 import { ConfirmButton, ErrorAlert, PageHeader, SectionHeader, StatusPill, useToast } from '@/components/ui';
 
@@ -30,6 +31,8 @@ export default function SettingsPage() {
           <ConfirmButton title={t('signOut')} message={`${t('signOut')}?`} confirmLabel={t('signOut')} cancelLabel={t('cancel')} className="btn btn-outline-danger" onConfirm={async () => { try { await signOut(); router.replace('/'); } catch (caught) { setError(caught); } }}><i className="bi bi-box-arrow-right me-2" />{t('signOut')}</ConfirmButton>
         </div>
       </section>
+
+      <Suspense fallback={null}><PlanSection /></Suspense>
 
       <section className="mb-4">
         <SectionHeader title={t('preferences')} />

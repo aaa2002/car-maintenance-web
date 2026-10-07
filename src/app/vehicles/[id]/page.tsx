@@ -111,10 +111,16 @@ export default function VehiclePage() {
         back={<Link href="/" className="back-link"><i className="bi bi-arrow-left" />{t('garage')}</Link>}
         title={`${car.brand} ${car.model}`}
         subtitle={`${car.year}${car.description ? ` · ${car.description}` : ''}`}
-        action={<button className="btn btn-outline-secondary" onClick={() => setEditVehicle(true)}><i className="bi bi-pencil me-sm-2" /><span className="d-none d-sm-inline">{t('edit')}</span></button>}
+        action={<button className="btn btn-outline-secondary" disabled={car.locked} onClick={() => setEditVehicle(true)}><i className="bi bi-pencil me-sm-2" /><span className="d-none d-sm-inline">{t('edit')}</span></button>}
       />
 
-      <div className="toolbar">
+      {car.locked && (
+        <div className="vehicle-locked-banner" role="status">
+          <span><i className="bi bi-lock me-2" aria-hidden="true" />{t('vehicleLockedBanner')}</span>
+          <Link href="/settings#plan" className="btn btn-sm btn-outline-secondary">{t('seePlans')}</Link>
+        </div>
+      )}
+      <div className="toolbar" hidden={car.locked}>
         <button className="btn btn-primary btn-island" onClick={() => { setEditingRepair(null); setRepairOpen(true); }}>{t('add')} {t('repair').toLowerCase()}<span className="btn-island-icon"><i className="bi bi-tools" /></span></button>
         <button className="btn btn-outline-secondary" onClick={() => { setEditingTrip(null); setTripOpen(true); }}><i className="bi bi-signpost-split me-2" />{t('add')} {t('trip').toLowerCase()}</button>
       </div>
@@ -122,7 +128,7 @@ export default function VehiclePage() {
       {car.photoUrl && <div className="app-panel section-gap"><img src={car.photoUrl} alt={`${car.brand} ${car.model}`} className="vehicle-photo" /></div>}
 
       <div className="app-panel stat-strip">
-        <button className="stat-item" onClick={() => setMileageOpen(true)} aria-label={`${t('currentMileage')}: ${t('edit')}`}>
+        <button className="stat-item" disabled={car.locked} onClick={() => setMileageOpen(true)} aria-label={`${t('currentMileage')}: ${t('edit')}`}>
           <span className="metric-label">{t('currentMileage')}<i className="bi bi-pencil" /></span>
           <strong className="metric-value">{car.mileageKm === null ? '-' : `${number(car.mileageKm, language, 0)} km`}</strong>
         </button>

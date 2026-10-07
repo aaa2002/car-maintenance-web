@@ -15,6 +15,8 @@ export type Car = {
   photoPath: string | null;
   photoUrl: string | null;
   createdAt: string;
+  /** Over the plan's vehicle limit: read-only until upgraded or chosen as active. */
+  locked: boolean;
 };
 
 export type Repair = {
@@ -61,7 +63,7 @@ export type DailySpend = { date: string; repairSpend: number; tripSpend: number 
 
 type CarRow = {
   id: number; brand: string; model: string; year: number; description: string | null;
-  mileage_km: number | null; photo_path: string | null; created_at: string;
+  mileage_km: number | null; photo_path: string | null; created_at: string; locked: boolean;
 };
 type RepairRow = {
   id: number; car_id: number; status: string; currency: string; mileage_km: number | null;
@@ -77,7 +79,7 @@ type ComplianceRow = {
 };
 type SpendRow = { date: string; repair_spend: number; trip_spend: number };
 
-const CAR_COLUMNS = 'id, brand, model, year, description, mileage_km, photo_path, created_at';
+const CAR_COLUMNS = 'id, brand, model, year, description, mileage_km, photo_path, created_at, locked';
 const REPAIR_COLUMNS = 'id, car_id, status, currency, mileage_km, title, date, price, notes, created_at';
 const TRIP_COLUMNS = 'id, car_id, status, currency, date, distance, fuel_used, gas_price, price, consumption, created_at';
 const COMPLIANCE_COLUMNS = 'id, car_id, kind, issued_date, expires_date, attachment_path, attachment_name, attachment_type, created_at';
@@ -86,7 +88,7 @@ const status = (value: string): MaintenanceStatus => value === 'scheduled' ? 'sc
 const currency = (value: string): Currency => value === 'EUR' ? 'EUR' : 'RON';
 const mapCar = (row: CarRow, photoUrl: string | null = null): Car => ({
   id: row.id, brand: row.brand, model: row.model, year: row.year, description: row.description,
-  mileageKm: row.mileage_km, photoPath: row.photo_path, photoUrl, createdAt: row.created_at,
+  mileageKm: row.mileage_km, photoPath: row.photo_path, photoUrl, createdAt: row.created_at, locked: row.locked,
 });
 const mapRepair = (row: RepairRow): Repair => ({
   id: row.id, carId: row.car_id, status: status(row.status), currency: currency(row.currency),

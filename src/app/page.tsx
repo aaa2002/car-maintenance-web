@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
 import { useAuth, useSettings } from '@/components/providers';
-import { Empty, ErrorAlert, ListSkeleton, PageHeader, SectionHeader, stagger, StatusPill, useToast } from '@/components/ui';
+import { Empty, ErrorAlert, ListSkeleton, Modal, PageHeader, SectionHeader, stagger, StatusPill, useToast } from '@/components/ui';
+import { atVehicleLimit, getBillingOverview, planLabel, type BillingOverview } from '@/lib/billing';
 import { VehicleForm } from '@/components/vehicle-form';
 import { createCar, getCars, getComplianceRecordsForCars, getDailySpendForMonth, getScheduledRepairs, getScheduledTrips, type Car, type ComplianceRecord, type Repair, type Trip } from '@/lib/database';
 import { countLabel, daysUntil, localDate, money, monthBounds, number } from '@/lib/format';
@@ -32,6 +33,8 @@ export default function GaragePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
   const [adding, setAdding] = useState(false);
+  const [billing, setBilling] = useState<BillingOverview | null>(null);
+  const [limitOpen, setLimitOpen] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     if (!user) return;
@@ -40,12 +43,14 @@ export default function GaragePage() {
     try {
       const loadedCars = await getCars();
       const bounds = monthBounds(0);
-      const [loadedRepairs, loadedTrips, loadedDocs, spend] = await Promise.all([
+      const [loadedRepairs, loadedTrips, loadedDocs, spend, overview] = await Promise.all([
         getScheduledRepairs(),
         getScheduledTrips(),
         getComplianceRecordsForCars(loadedCars.map((car) => car.id)),
         getDailySpendForMonth({ currency, monthStart: bounds.start, nextMonthStart: bounds.next }),
+        getBillingOverview(),
       ]);
+      setBilling(overview);
       setCars(loadedCars); setRepairs(loadedRepairs); setTrips(loadedTrips); setDocs(loadedDocs);
       setMonthSpend(spend.reduce((sum, row) => sum + row.repairSpend + row.tripSpend, 0));
     } catch (caught) { setError(caught); }
@@ -53,6 +58,8 @@ export default function GaragePage() {
   }, [currency, user]);
 
   useEffect(() => { if (user) void load(); }, [load, user]);
+  // At the plan's limit, explain and point to plans instead of opening a form that cannot be saved.
+  const addVehicle = () => (billing && atVehicleLimit(billing) ? setLimitOpen(true) : setAdding(true));
   const carMap = useMemo(() => new Map(cars.map((car) => [car.id, car])), [cars]);
 
   const attention = useMemo(() => {
@@ -100,7 +107,7 @@ export default function GaragePage() {
       <PageHeader
         title={displayName ? `${t('garage')}, ${displayName}` : t('garage')}
         subtitle={`${countLabel(cars.length, language, t, 'vehicleCount')} · ${attention.length ? countLabel(attention.length, language, t, 'attentionCount') : t('noAttention')}`}
-        action={<button className="btn btn-primary btn-island" onClick={() => setAdding(true)} aria-label={t('addVehicle')}><span className="d-none d-sm-inline">{t('addVehicle')}</span><span className="btn-island-icon"><i className="bi bi-plus-lg" /></span></button>}
+        action={<button className="btn btn-primary btn-island" onClick={() => addVehicle()} aria-label={t('addVehicle')}><span className="d-none d-sm-inline">{t('addVehicle')}</span><span className="btn-island-icon"><i className="bi bi-plus-lg" /></span></button>}
       />
       {Boolean(error) && <ErrorAlert error={error} onRetry={() => void load()} retryLabel={t('retry')} />}
 
@@ -136,7 +143,9 @@ export default function GaragePage() {
             <Link href={`/vehicles/${car.id}`} key={car.id} className="vehicle-tile reveal" style={stagger(index)}>
               <span className="vehicle-tile-media">
                 {car.photoUrl ? <img src={car.photoUrl} alt="" loading="lazy" decoding="async" /> : <span className="vehicle-plate" aria-hidden="true">{car.brand}</span>}
-                {warning && <span className="vehicle-tile-flag"><StatusPill tone={warning}>{warning === 'danger' ? t('expired') : t('expiresSoon')}</StatusPill></span>}
+                {car.locked
+                  ? <span className="vehicle-tile-flag"><StatusPill tone="neutral"><i className="bi bi-lock me-1" aria-hidden="true" />{t('readOnly')}</StatusPill></span>
+                  : warning && <span className="vehicle-tile-flag"><StatusPill tone={warning}>{warning === 'danger' ? t('expired') : t('expiresSoon')}</StatusPill></span>}
               </span>
               <span className="vehicle-tile-body">
                 <span className="min-w-0"><span className="vehicle-tile-title truncate">{car.brand} {car.model}</span><span className="vehicle-tile-meta truncate">{car.description || car.year}</span></span>
@@ -144,8 +153,16 @@ export default function GaragePage() {
               </span>
             </Link>
           );
-        })}</div> : <div className="app-panel"><Empty icon="bi-car-front" title={t('noVehicles')} text={t('noVehiclesHint')} action={<button className="btn btn-primary" onClick={() => setAdding(true)}>{t('addVehicle')}</button>} /></div>}
+        })}</div> : <div className="app-panel"><Empty icon="bi-car-front" title={t('noVehicles')} text={t('noVehiclesHint')} action={<button className="btn btn-primary" onClick={() => addVehicle()}>{t('addVehicle')}</button>} /></div>}
       </section>
+
+      <Modal title={t('vehicleLimitTitle')} show={limitOpen} onClose={() => setLimitOpen(false)} variant="modal">
+        <div className="modal-body"><p className="mb-0 text-body-secondary">{billing && t('vehicleLimitHint').replace('{plan}', planLabel(billing.planId, t)).replace('{limit}', String(billing.vehicleLimit))}</p></div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn-outline-secondary" onClick={() => setLimitOpen(false)}>{t('cancel')}</button>
+          <Link href="/settings#plan" className="btn btn-primary" onClick={() => setLimitOpen(false)}>{t('seePlans')}</Link>
+        </div>
+      </Modal>
 
       <VehicleForm show={adding} onClose={() => setAdding(false)} onSave={async (input) => { await createCar(input); await load(true); toast(t('vehicleSaved')); }} />
     </AppShell>
