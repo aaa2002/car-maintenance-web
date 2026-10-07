@@ -26,6 +26,7 @@ import {
   type Repair,
   type Trip,
 } from '@/lib/database';
+import { getCurrentAssignments, getDrivers } from '@/lib/drivers';
 import { daysUntil, errorMessage, localDate, money, number } from '@/lib/format';
 import { CAR_DOCUMENT_BUCKET, CAR_PHOTO_BUCKET, removeObject } from '@/lib/storage';
 
@@ -43,6 +44,7 @@ export default function VehiclePage() {
   const [repairs, setRepairs] = useState<Repair[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [docs, setDocs] = useState<ComplianceRecord[]>([]);
+  const [currentDriver, setCurrentDriver] = useState<{ id: number; name: string } | null>(null);
   const [totalCost, setTotalCost] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
@@ -61,10 +63,13 @@ export default function VehiclePage() {
     if (!silent) setLoading(true);
     setError(undefined);
     try {
-      const [loadedCar, loadedRepairs, loadedTrips, loadedDocs] = await Promise.all([
-        getCar(carId), getRepairsForCar(carId), getTripsForCar(carId), getComplianceRecordsForCar(carId),
+      const [loadedCar, loadedRepairs, loadedTrips, loadedDocs, openAssignments, drivers] = await Promise.all([
+        getCar(carId), getRepairsForCar(carId), getTripsForCar(carId), getComplianceRecordsForCar(carId), getCurrentAssignments(), getDrivers(),
       ]);
       setCar(loadedCar); setRepairs(loadedRepairs); setTrips(loadedTrips); setDocs(loadedDocs);
+      const assignment = openAssignments.find((value) => value.carId === carId);
+      const driver = assignment && drivers.find((value) => value.id === assignment.driverId);
+      setCurrentDriver(driver ? { id: driver.id, name: driver.fullName } : null);
     } catch (caught) { setError(caught); }
     finally { setLoading(false); }
   }, [carId, user]);
@@ -114,6 +119,11 @@ export default function VehiclePage() {
         action={<button className="btn btn-outline-secondary" disabled={car.locked} onClick={() => setEditVehicle(true)}><i className="bi bi-pencil me-sm-2" /><span className="d-none d-sm-inline">{t('edit')}</span></button>}
       />
 
+      <div className="vehicle-driver">
+        {currentDriver
+          ? <Link href={`/drivers/${currentDriver.id}`} className="vehicle-driver-link"><i className="bi bi-person" aria-hidden="true" /><span>{t('driver')}: <strong>{currentDriver.name}</strong></span><i className="bi bi-chevron-right" aria-hidden="true" /></Link>
+          : <Link href="/drivers" className="vehicle-driver-link muted"><i className="bi bi-person" aria-hidden="true" /><span>{t('noDriverAssigned')}</span><i className="bi bi-chevron-right" aria-hidden="true" /></Link>}
+      </div>
       {car.locked && (
         <div className="vehicle-locked-banner" role="status">
           <span><i className="bi bi-lock me-2" aria-hidden="true" />{t('vehicleLockedBanner')}</span>

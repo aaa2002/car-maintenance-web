@@ -20,6 +20,24 @@ export function dateInputValue(value = new Date()) {
 
 export function today() { return dateInputValue(); }
 
+const parseDay = (value: string) => { const [y, m, d] = value.split('-').map(Number); return new Date(y, m - 1, d); };
+
+export function addDays(value: string, days: number) {
+  const date = parseDay(value); date.setDate(date.getDate() + days); return dateInputValue(date);
+}
+
+/** Monday of the week containing `value` (settlements are stored per ISO week). */
+export function mondayOf(value: string) {
+  const date = parseDay(value); const weekday = (date.getDay() + 6) % 7; date.setDate(date.getDate() - weekday); return dateInputValue(date);
+}
+
+/** First and last day (inclusive) of the month `offset` months from now, plus its label. */
+export function monthRange(offset: number, language: 'en' | 'ro') {
+  const { start, next } = monthBounds(offset);
+  const label = new Intl.DateTimeFormat(language === 'ro' ? 'ro-RO' : 'en-GB', { month: 'long', year: 'numeric' }).format(parseDay(start));
+  return { from: start, to: addDays(next, -1), label };
+}
+
 export function tomorrow() {
   const value = new Date();
   value.setDate(value.getDate() + 1);
@@ -60,6 +78,7 @@ function errorKey(error: unknown): StringKey | null {
   if (code.startsWith('over_') || normalized.includes('rate limit')) return 'rateLimited';
   if (normalized.includes('vehicle_limit_reached')) return 'vehicleLimitReached';
   if (normalized.includes('vehicle_locked')) return 'vehicleLocked';
+  if (normalized.includes('weekly_settlements_user_id_driver_id_week_start_key')) return 'duplicateWeek';
   if (normalized.includes('too_many_active_vehicles')) return 'tooManyActiveVehicles';
   if (normalized.includes('failed to fetch') || normalized.includes('network')) return 'networkError';
   return null;

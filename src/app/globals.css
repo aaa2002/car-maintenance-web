@@ -171,8 +171,8 @@ button.stat-item:disabled .bi-pencil { display: none; }
 .icon-button:active { transform: scale(.92); }
 .icon-button.danger:hover { color: var(--app-danger); background: var(--app-danger-soft); }
 
-.segmented { display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: var(--app-surface-muted); box-shadow: inset 0 0 0 1px var(--app-hairline); }
-.segmented button { min-height: 32px; padding: 4px 14px; border: 0; border-radius: 999px; color: var(--app-text-muted); background: transparent; font-size: .84rem; font-weight: 540; transition: color var(--app-duration-fast), background-color var(--app-duration-fast); }
+.segmented { display: inline-flex; flex-shrink: 0; gap: 2px; padding: 4px; border-radius: 999px; background: var(--app-surface-muted); box-shadow: inset 0 0 0 1px var(--app-hairline); }
+.segmented button { min-height: 32px; white-space: nowrap; padding: 4px 14px; border: 0; border-radius: 999px; color: var(--app-text-muted); background: transparent; font-size: .84rem; font-weight: 540; transition: color var(--app-duration-fast), background-color var(--app-duration-fast); }
 .segmented button:hover:not(:disabled) { color: var(--app-text); }
 .segmented button:disabled { opacity: .45; }
 .segmented button.active { color: var(--app-text); background: var(--app-surface); box-shadow: 0 0 0 1px var(--app-hairline), 0 2px 8px -2px rgb(20 26 52 / 18%); }
@@ -450,3 +450,25 @@ button.stat-item:disabled .bi-pencil { display: none; }
 .active-option.checked { background: var(--app-brand-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-brand) 40%, transparent); }
 .active-option:has(input:disabled) { cursor: not-allowed; opacity: .6; }
 .vehicle-locked-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-bottom: 24px; padding: 13px 16px; border-radius: var(--app-radius-control); color: var(--app-warning); background: var(--app-warning-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-warning) 25%, transparent); }
+
+/* Drivers */
+.driver-avatar { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 auto; border-radius: 50%; color: var(--app-brand); background: var(--app-brand-soft); font-size: .82rem; font-weight: 650; letter-spacing: .02em; }
+.driver-avatar.inactive { color: var(--app-text-muted); background: var(--app-surface-muted); }
+.driver-figures { display: flex; align-items: center; gap: 24px; flex: 0 0 auto; }
+.driver-figures > span { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.driver-figures .metric-label { font-size: .74rem; }
+@media (max-width: 767.98px) {
+  .driver-row { flex-wrap: wrap; }
+  .driver-figures { order: 3; width: 100%; justify-content: space-between; padding-left: 48px; }
+  .driver-figures > span { align-items: flex-start; }
+  .driver-row > .bi-chevron-right { display: none; }
+}
+.driver-current { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 16px; padding: 16px 20px; }
+.stat-item .small { margin-top: -4px; }
+.stat-strip + .stat-strip-note { margin: -28px 0 40px; }
+.vehicle-driver { margin: -12px 0 24px; }
+.vehicle-driver-link { display: inline-flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; border-radius: 999px; color: var(--app-text); background: var(--app-surface); box-shadow: 0 0 0 1px var(--app-hairline); font-size: .88rem; text-decoration: none; transition: box-shadow var(--app-duration-fast); }
+.vehicle-driver-link:hover { color: var(--app-text); box-shadow: 0 0 0 1px var(--app-border-strong); }
+.vehicle-driver-link.muted { color: var(--app-text-muted); }
+.vehicle-driver-link > .bi-person { color: var(--app-brand); }
+.vehicle-driver-link > .bi-chevron-right { color: var(--app-text-muted); font-size: .75rem; }
