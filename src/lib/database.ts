@@ -44,6 +44,8 @@ export type Trip = {
   price: number | null;
   consumption: number;
   createdAt: string;
+  /** Explicit driver; null means whoever had the vehicle assigned on that date. */
+  driverId: number | null;
 };
 
 export type ComplianceRecord = {
@@ -71,7 +73,7 @@ type RepairRow = {
 };
 type TripRow = {
   id: number; car_id: number; status: string; currency: string; date: string; distance: number;
-  fuel_used: number; gas_price: number | null; price: number | null; consumption: number; created_at: string;
+  fuel_used: number; gas_price: number | null; price: number | null; consumption: number; created_at: string; driver_id: number | null;
 };
 type ComplianceRow = {
   id: number; car_id: number; kind: string; issued_date: string; expires_date: string;
@@ -81,7 +83,7 @@ type SpendRow = { date: string; repair_spend: number; trip_spend: number };
 
 const CAR_COLUMNS = 'id, brand, model, year, description, mileage_km, photo_path, created_at, locked';
 const REPAIR_COLUMNS = 'id, car_id, status, currency, mileage_km, title, date, price, notes, created_at';
-const TRIP_COLUMNS = 'id, car_id, status, currency, date, distance, fuel_used, gas_price, price, consumption, created_at';
+const TRIP_COLUMNS = 'id, car_id, status, currency, date, distance, fuel_used, gas_price, price, consumption, created_at, driver_id';
 const COMPLIANCE_COLUMNS = 'id, car_id, kind, issued_date, expires_date, attachment_path, attachment_name, attachment_type, created_at';
 
 const status = (value: string): MaintenanceStatus => value === 'scheduled' ? 'scheduled' : 'done';
@@ -98,7 +100,7 @@ const mapRepair = (row: RepairRow): Repair => ({
 const mapTrip = (row: TripRow): Trip => ({
   id: row.id, carId: row.car_id, status: status(row.status), currency: currency(row.currency), date: row.date,
   distance: row.distance, fuelUsed: row.fuel_used, gasPrice: row.gas_price, price: row.price,
-  consumption: row.consumption ?? 0, createdAt: row.created_at,
+  consumption: row.consumption ?? 0, createdAt: row.created_at, driverId: row.driver_id,
 });
 const mapCompliance = (row: ComplianceRow, attachmentUrl: string | null = null): ComplianceRecord => ({
   id: row.id, carId: row.car_id, kind: row.kind === 'rca' ? 'rca' : 'itp', issuedDate: row.issued_date,
@@ -165,12 +167,12 @@ export async function getTripsForCar(carId: number) {
 export async function getScheduledTrips() {
   return unwrapList(await supabase.from('trips').select(TRIP_COLUMNS).eq('status', 'scheduled').order('date').returns<TripRow[]>(), 'Loading scheduled trips').map(mapTrip);
 }
-export type TripInput = { carId: number; status: MaintenanceStatus; currency: Currency; date: string; distance: number; fuelUsed: number; gasPrice: number | null };
+export type TripInput = { carId: number; status: MaintenanceStatus; currency: Currency; date: string; distance: number; fuelUsed: number; gasPrice: number | null; driverId: number | null };
 export async function createTrip(input: TripInput) {
-  return unwrap(await supabase.from('trips').insert({ car_id: input.carId, status: input.status, currency: input.currency, notification_ids: [], date: input.date, distance: input.distance, fuel_used: input.fuelUsed, gas_price: input.gasPrice }).select('id').single<{ id: number }>(), 'Adding trip').id;
+  return unwrap(await supabase.from('trips').insert({ car_id: input.carId, status: input.status, currency: input.currency, notification_ids: [], date: input.date, distance: input.distance, fuel_used: input.fuelUsed, gas_price: input.gasPrice, driver_id: input.driverId }).select('id').single<{ id: number }>(), 'Adding trip').id;
 }
 export async function updateTrip(id: number, input: Omit<TripInput, 'carId'>) {
-  expectOk(await supabase.from('trips').update({ status: input.status, currency: input.currency, date: input.date, distance: input.distance, fuel_used: input.fuelUsed, gas_price: input.gasPrice }).eq('id', id), 'Saving trip');
+  expectOk(await supabase.from('trips').update({ status: input.status, currency: input.currency, date: input.date, distance: input.distance, fuel_used: input.fuelUsed, gas_price: input.gasPrice, driver_id: input.driverId }).eq('id', id), 'Saving trip');
 }
 export async function deleteTrip(id: number) { expectOk(await supabase.from('trips').delete().eq('id', id), 'Deleting trip'); }
 

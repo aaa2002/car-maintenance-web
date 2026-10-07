@@ -11,6 +11,7 @@ import { Loading, Modal } from './ui';
 
 const nav = [
   { href: '/', key: 'garage' as const, icon: 'bi-car-front' },
+  { href: '/drivers', key: 'drivers' as const, icon: 'bi-people' },
   { href: '/spend', key: 'spend' as const, icon: 'bi-bar-chart' },
   { href: '/settings', key: 'settings' as const, icon: 'bi-gear' },
 ];

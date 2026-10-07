@@ -17,6 +17,7 @@ import {
 import { errorMessage, today, tomorrow } from '@/lib/format';
 import { CAR_DOCUMENT_BUCKET, removeObject, uploadComplianceAttachment } from '@/lib/storage';
 import { useSettings } from './providers';
+import { getDrivers, driverForCarOn, type Driver } from '@/lib/drivers';
 import { DateField } from './date-field';
 import { FileDrop } from './file-drop';
 import { ConfirmButton, Modal } from './ui';
@@ -83,13 +84,25 @@ export function TripForm({ show, carId, trip, onClose, onSaved }: { show: boolea
   const [distance, setDistance] = useState(''); const [fuel, setFuel] = useState(''); const [gasPrice, setGasPrice] = useState('');
   const [entryCurrency, setEntryCurrency] = useState<Currency>(currency);
   const [busy, setBusy] = useState(false); const [errors, setErrors] = useState<Errors>({}); const [formError, setFormError] = useState('');
+  const [drivers, setDrivers] = useState<Driver[]>([]); const [driverId, setDriverId] = useState(''); const [assignedId, setAssignedId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!show) return;
     setDate(trip?.date ?? today()); setStatus(trip?.status ?? 'done'); setDistance(trip?.distance?.toString() ?? '');
     setFuel(trip?.fuelUsed?.toString() ?? ''); setGasPrice(trip?.gasPrice?.toString() ?? '');
     setEntryCurrency(trip?.currency ?? currency); setErrors({}); setFormError('');
+    setDriverId(trip?.driverId ? String(trip.driverId) : '');
+    getDrivers().then(setDrivers).catch(() => setDrivers([]));
   }, [show, trip, currency]);
+
+  // The default "driven by" is whoever had this vehicle assigned on the trip date.
+  useEffect(() => {
+    if (!show || !date) return;
+    let cancelled = false;
+    driverForCarOn(carId, date).then((id) => { if (!cancelled) setAssignedId(id); }).catch(() => { if (!cancelled) setAssignedId(null); });
+    return () => { cancelled = true; };
+  }, [show, carId, date]);
+  const assignedName = drivers.find((driver) => driver.id === assignedId)?.fullName;
 
   const calculation = useMemo(() => {
     const km = Number(distance); const liters = Number(fuel); const unitPrice = Number(gasPrice);
@@ -106,7 +119,7 @@ export function TripForm({ show, carId, trip, onClose, onSaved }: { show: boolea
     setErrors(nextErrors); if (Object.keys(nextErrors).length) return;
     setBusy(true);
     try {
-      const input = { status, currency: entryCurrency, date, distance: km, fuelUsed: liters, gasPrice: unitPrice };
+      const input = { status, currency: entryCurrency, date, distance: km, fuelUsed: liters, gasPrice: unitPrice, driverId: driverId ? Number(driverId) : null };
       if (trip) await updateTrip(trip.id, input); else await createTrip({ carId, ...input });
       await onSaved(); onClose();
     } catch (caught) { setFormError(errorMessage(caught, t)); }
@@ -121,6 +134,10 @@ export function TripForm({ show, carId, trip, onClose, onSaved }: { show: boolea
       <div className="col-sm-6"><label className="form-label required" htmlFor="trip-fuel">{t('fuelUsed')} (L)</label><input id="trip-fuel" inputMode="decimal" type="number" min="0" step="0.01" className={`form-control ${errors.fuel ? 'is-invalid' : ''}`} value={fuel} onChange={(event) => setFuel(event.target.value)} /><FieldError error={errors.fuel} /></div>
       <div className="col-sm-8"><label className="form-label" htmlFor="trip-gas-price">{t('gasPrice')}</label><input id="trip-gas-price" inputMode="decimal" type="number" min="0" step="0.001" className={`form-control ${errors.gasPrice ? 'is-invalid' : ''}`} value={gasPrice} onChange={(event) => setGasPrice(event.target.value)} /><FieldError error={errors.gasPrice} /></div>
       <div className="col-sm-4"><label className="form-label" htmlFor="trip-currency">{t('currency')}</label><select id="trip-currency" className="form-select" value={entryCurrency} onChange={(event) => setEntryCurrency(event.target.value as Currency)}><option>RON</option><option>EUR</option></select></div>
+      {drivers.length > 0 && <div className="col-12"><label className="form-label" htmlFor="trip-driver">{t('drivenBy')}</label><select id="trip-driver" className="form-select" value={driverId} onChange={(event) => setDriverId(event.target.value)}>
+        <option value="">{assignedName ? t('assignedDriverNamed').replace('{name}', assignedName) : t('assignedDriverNone')}</option>
+        {drivers.filter((driver) => driver.active || String(driver.id) === driverId).map((driver) => <option key={driver.id} value={driver.id}>{driver.fullName}</option>)}
+      </select><div className="form-text">{t('drivenByHint')}</div></div>}
       <div className="col-12"><div className="app-panel app-panel-body d-flex flex-wrap justify-content-between gap-3"><span><span className="metric-label d-block">{t('consumption')}</span><strong>{calculation.consumption.toFixed(1)} L/100 km</strong></span><span><span className="metric-label d-block">{t('cost')}</span><strong>{calculation.cost.toFixed(2)} {entryCurrency}</strong></span></div></div>
       {formError && <div className="col-12"><div className="app-alert mb-0" role="alert">{formError}</div></div>}
     </div></div>
