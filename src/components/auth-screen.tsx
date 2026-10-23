@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { useAuth, useSettings } from './providers';
@@ -94,6 +95,7 @@ export function AuthScreen() {
             {mode === 'signin' && <button type="button" className="btn btn-link btn-sm w-100 mt-2" disabled={busy} onClick={reset}>{t('forgotPassword')}</button>}
           </form>
           <div className="border-top mt-4 pt-4 text-center text-body-secondary">{mode === 'signin' ? t('needAccount') : t('haveAccount')} <button type="button" className="btn btn-link p-0 align-baseline" onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(undefined); setNotice(''); }}>{mode === 'signin' ? t('signUp') : t('signIn')}</button></div>
+          <p className="auth-legal">{t('authPrivacyNote')} <Link href="/privacy" className="link-secondary">{t('privacyPolicy')}</Link>.</p>
         </div>
       </section>
     </main>
