@@ -123,7 +123,7 @@ const mapCompliance = (row: ComplianceRow, attachmentUrl: string | null = null):
 });
 
 export async function getCars() {
-  const rows = unwrapList(await supabase.from('cars').select(CAR_COLUMNS).order('created_at', { ascending: false }).returns<CarRow[]>(), 'Loading vehicles');
+  const rows = unwrapList(await supabase.from('cars').select(CAR_COLUMNS).order('created_at', { ascending: false }).order('id', { ascending: false }).returns<CarRow[]>(), 'Loading vehicles');
   const urls = await signedUrlMap(CAR_PHOTO_BUCKET, rows.map((row) => row.photo_path));
   return rows.map((row) => mapCar(row, row.photo_path ? urls.get(row.photo_path) ?? null : null));
 }
@@ -290,4 +290,40 @@ type CarProfitRow = { car_id: number | null; income: number; repair_cost: number
 export async function getFleetProfit(from: string, to: string, currency: Currency): Promise<CarProfit[]> {
   const rows = unwrapList(await supabase.rpc('fleet_profit_by_car', { p_from: from, p_to: to, p_currency: currency }) as { data: CarProfitRow[] | null; error: { message: string } | null }, 'Loading profit');
   return rows.map((row) => ({ carId: row.car_id, income: row.income, repairCost: row.repair_cost, fineCost: row.fine_cost, profit: row.income - row.repair_cost - row.fine_cost }));
+}
+
+// Utilization: each day a ride-sharing car is driving, off the road or idle
+export type DowntimeReason = 'repair' | 'accident' | 'inspection' | 'other';
+export const DOWNTIME_REASONS: DowntimeReason[] = ['repair', 'accident', 'inspection', 'other'];
+export type Downtime = { id: number; carId: number; startsOn: string; endsOn: string | null; reason: DowntimeReason; notes: string | null };
+type DowntimeRow = { id: number; car_id: number; starts_on: string; ends_on: string | null; reason: string; notes: string | null };
+const DOWNTIME_COLUMNS = 'id, car_id, starts_on, ends_on, reason, notes';
+const mapDowntime = (row: DowntimeRow): Downtime => ({
+  id: row.id, carId: row.car_id, startsOn: row.starts_on, endsOn: row.ends_on,
+  reason: DOWNTIME_REASONS.includes(row.reason as DowntimeReason) ? row.reason as DowntimeReason : 'other', notes: row.notes,
+});
+export async function getDowntime(carId: number) {
+  return unwrapList(await supabase.from('vehicle_downtime').select(DOWNTIME_COLUMNS).eq('car_id', carId).order('starts_on', { ascending: false }).returns<DowntimeRow[]>(), 'Loading downtime').map(mapDowntime);
+}
+export type DowntimeInput = Omit<Downtime, 'id'>;
+const downtimePayload = (input: DowntimeInput) => ({ car_id: input.carId, starts_on: input.startsOn, ends_on: input.endsOn, reason: input.reason, notes: input.notes?.trim() || null });
+export async function createDowntime(input: DowntimeInput) {
+  return unwrap(await supabase.from('vehicle_downtime').insert(downtimePayload(input)).select('id').single<{ id: number }>(), 'Saving downtime').id;
+}
+export async function updateDowntime(id: number, input: DowntimeInput) { expectOk(await supabase.from('vehicle_downtime').update(downtimePayload(input)).eq('id', id), 'Saving downtime'); }
+export async function deleteDowntime(id: number) { expectOk(await supabase.from('vehicle_downtime').delete().eq('id', id), 'Deleting downtime'); }
+
+export type CarState = 'driving' | 'off_road' | 'idle';
+export type CarUtilization = {
+  carId: number; days: number; drivenDays: number; downtimeDays: number; idleDays: number;
+  /** Rent the car usually earns per week (its recent settlements, else the fleet average); null without history. */
+  weeklyRent: number | null; state: CarState; stateSince: string;
+};
+type UtilizationRow = { car_id: number; days: number; driven_days: number; downtime_days: number; idle_days: number; weekly_rent: number | null; state: string; state_since: string };
+export async function getUtilization(from: string, to: string, currency: Currency): Promise<CarUtilization[]> {
+  const rows = unwrapList(await supabase.rpc('fleet_utilization', { p_from: from, p_to: to, p_currency: currency }) as { data: UtilizationRow[] | null; error: { message: string } | null }, 'Loading utilization');
+  return rows.map((row) => ({
+    carId: row.car_id, days: row.days, drivenDays: row.driven_days, downtimeDays: row.downtime_days, idleDays: row.idle_days,
+    weeklyRent: row.weekly_rent, state: row.state === 'off_road' ? 'off_road' : row.state === 'driving' ? 'driving' : 'idle', stateSince: row.state_since,
+  }));
 }

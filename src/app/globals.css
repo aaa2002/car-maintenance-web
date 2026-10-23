@@ -153,6 +153,7 @@ button.stat-item:disabled .bi-pencil { display: none; }
 .vehicle-tile-meta { display: block; margin-top: 2px; color: var(--app-text-muted); font-size: .84rem; }
 .vehicle-tile-km { flex: 0 0 auto; color: var(--app-text-muted); font-size: .84rem; }
 .vehicle-tile-flag { position: absolute; top: 12px; left: 12px; }
+.vehicle-tile-state { position: absolute; top: 12px; right: 12px; }
 .vehicle-photo { width: 100%; aspect-ratio: 21 / 8; object-fit: cover; background: var(--app-plate); }
 .vehicle-thumb { width: 64px; height: 48px; flex: 0 0 auto; border-radius: var(--app-radius-control); object-fit: cover; background: var(--app-surface-muted); }
 .vehicle-placeholder { display: grid; place-items: center; color: var(--app-text-muted); }
@@ -340,22 +341,26 @@ button.stat-item:disabled .bi-pencil { display: none; }
 .bento-link { display: inline-flex; align-items: center; gap: 10px; align-self: flex-start; padding: 5px 5px 5px 16px; border-radius: 999px; background: rgb(255 255 255 / 14%); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%); font-size: .88rem; font-weight: 560; }
 .bento-spend:hover .btn-island-icon { transform: translate(2px, -2px) scale(1.06); }
 /* Profit: month to date against last month, with the best and weakest vehicle. */
-.bento-profit { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 2fr); gap: 22px 40px; align-items: center; }
+.bento-profit { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 22px 40px; align-items: center; }
 .profit-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .profit-main .metric-value { font-size: clamp(2rem, 4vw, 2.8rem); letter-spacing: -.04em; }
 .profit-meter { height: 8px; overflow: hidden; border-radius: 999px; background: var(--app-surface-muted); box-shadow: inset 0 0 0 1px var(--app-hairline); }
 .profit-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--app-brand); transform-origin: left; animation: profit-fill 900ms var(--app-ease) both; }
 .profit-meter > span.is-ahead { background: var(--app-success); }
 @keyframes profit-fill { from { transform: scaleX(0); } }
-.profit-breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; min-width: 0; }
+.profit-breakdown { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px 24px; min-width: 0; }
+.profit-breakdown > .profit-line, .profit-breakdown > .profit-utilization { grid-column: span 2; }
+.profit-breakdown > .profit-car { grid-column: span 3; }
 .profit-line { display: flex; flex-direction: column; gap: 4px; }
 .profit-line strong { font-size: 1.15rem; font-weight: 640; }
 .profit-car { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 9px 12px; border-radius: var(--app-radius-control); color: var(--app-text); background: var(--app-surface-muted); font-size: .86rem; text-decoration: none; transition: background-color var(--app-duration-fast); }
 .profit-car:hover { color: var(--app-text); background: var(--app-surface-hover); }
 .profit-car > span { flex: 1; min-width: 0; }
 .profit-car > .bi { color: var(--app-text-muted); }
+.profit-utilization { display: flex; flex-direction: column; gap: 4px; }
+.profit-utilization strong { font-size: 1.15rem; font-weight: 640; }
 @media (prefers-reduced-motion: reduce) { .profit-meter > span { animation: none; } }
-@media (max-width: 767.98px) { .profit-car { grid-column: 1 / -1; } }
+@media (max-width: 767.98px) { .profit-breakdown > .profit-line, .profit-breakdown > .profit-utilization { grid-column: span 3; } .profit-breakdown > .profit-car { grid-column: 1 / -1; } }
 
 /* Date field: a styled trigger plus an inline calendar inside a tray. */
 .date-field-trigger { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; cursor: pointer; }
@@ -542,3 +547,10 @@ button.stat-item:disabled .bi-pencil { display: none; }
 .import-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .import-table tbody tr:last-child > * { border-bottom: 0; }
 .import-table tr.is-excluded > * { opacity: .45; }
+
+/* Vehicle state: off the road or waiting for a driver, with the rent it is costing. */
+.vehicle-state { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 24px; padding: 13px 16px; border-radius: var(--app-radius-control); }
+.vehicle-state > .bi { font-size: 1.1rem; }
+.vehicle-state .small { opacity: .9; }
+.vehicle-state.state-idle { color: var(--app-warning); background: var(--app-warning-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-warning) 25%, transparent); }
+.vehicle-state.state-off-road { color: var(--app-text); background: var(--app-surface-muted); box-shadow: 0 0 0 1px var(--app-hairline); }
