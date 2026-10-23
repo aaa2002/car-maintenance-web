@@ -124,3 +124,17 @@ export function fuelAlerts(rows: FuelUse[]): FuelAlert[] {
 }
 
 export const carLabel = (car: Pick<Car, 'brand' | 'model'> & Partial<Pick<Car, 'plateNumber'>>) => `${car.brand} ${car.model}${car.plateNumber ? ` · ${car.plateNumber}` : ''}`;
+
+// Utilization ---------------------------------------------------------------
+
+/** Idle or off-road stretches shorter than this are normal turnover between drivers, not worth an alert. */
+export const IDLE_ALERT_DAYS = 3;
+/** Days since a state started, counting today. */
+export const daysSince = (date: string) => Math.max(0, -daysUntil(date)) + 1;
+/** Rent not collected over a number of days, at the car's usual weekly rent. */
+export const missedRent = (days: number, weeklyRent: number | null) => (weeklyRent ? Math.round(days * weeklyRent / 7) : 0);
+/** Share of days the fleet's ride-sharing cars had a driver, or null without data. */
+export function fleetUtilization(rows: { days: number; drivenDays: number }[]) {
+  const days = rows.reduce((sum, row) => sum + row.days, 0);
+  return days ? rows.reduce((sum, row) => sum + row.drivenDays, 0) / days : null;
+}

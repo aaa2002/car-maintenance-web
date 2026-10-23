@@ -8,35 +8,41 @@ import { FineList } from '@/components/fine-list';
 import { FineForm, FinePaidForm } from '@/components/fine-forms';
 import { ComplianceForm, RepairForm, TripForm } from '@/components/maintenance-forms';
 import { CompleteServiceForm, ServicePlanForm } from '@/components/service-forms';
+import { BackOnRoadForm, DowntimeForm } from '@/components/downtime-forms';
 import { useAuth, useSettings } from '@/components/providers';
 import { ConfirmButton, Empty, ErrorAlert, ListSkeleton, Modal, PageHeader, SectionHeader, stagger, StatusPill, useToast } from '@/components/ui';
 import { VehicleForm } from '@/components/vehicle-form';
 import {
   deleteCar,
   deleteComplianceRecord,
+  deleteDowntime,
   deleteRepair,
   deleteServicePlan,
   deleteTrip,
   getCar,
   getComplianceRecordsForCar,
+  getDowntime,
   getRepairsForCar,
   getServicePlans,
   getTotalSpendForCar,
   getTripsForCar,
+  getUtilization,
   updateCar,
   latestDocuments,
   updateCarMileage,
   type Car,
   type ComplianceKind,
   type ComplianceRecord,
+  type CarUtilization,
+  type Downtime,
   type Repair,
   type ServicePlan,
   type Trip,
 } from '@/lib/database';
 import { getCurrentAssignments, getDrivers, type Driver } from '@/lib/drivers';
-import { CAR_DOCUMENTS, dailyKm, documentState, estimatedMileage, optionalCarDocuments, requiredCarDocuments, serviceDue } from '@/lib/fleet';
+import { CAR_DOCUMENTS, dailyKm, daysSince, documentState, estimatedMileage, missedRent, optionalCarDocuments, requiredCarDocuments, serviceDue } from '@/lib/fleet';
 import { getFines, type Fine } from '@/lib/fines';
-import { errorMessage, localDate, money, number } from '@/lib/format';
+import { errorMessage, localDate, money, monthRange, number } from '@/lib/format';
 import { CAR_DOCUMENT_BUCKET, CAR_PHOTO_BUCKET, removeObject } from '@/lib/storage';
 
 type ActivityFilter = 'all' | 'repairs' | 'trips';
@@ -62,6 +68,10 @@ export default function VehiclePage() {
   const [fineForm, setFineForm] = useState<{ fine: Fine | null } | null>(null);
   const [payingFine, setPayingFine] = useState<Fine | null>(null);
   const [addDocOpen, setAddDocOpen] = useState(false);
+  const [downtime, setDowntime] = useState<Downtime[]>([]);
+  const [utilization, setUtilization] = useState<CarUtilization | null>(null);
+  const [downtimeForm, setDowntimeForm] = useState<{ downtime: Downtime | null } | null>(null);
+  const [endingDowntime, setEndingDowntime] = useState<Downtime | null>(null);
   const [totalCost, setTotalCost] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
@@ -80,9 +90,12 @@ export default function VehiclePage() {
     if (!silent) setLoading(true);
     setError(undefined);
     try {
-      const [loadedCar, loadedRepairs, loadedTrips, loadedDocs, openAssignments, loadedDrivers, loadedPlans, loadedFines] = await Promise.all([
+      const month = monthRange(0, 'en');
+      const [loadedCar, loadedRepairs, loadedTrips, loadedDocs, openAssignments, loadedDrivers, loadedPlans, loadedFines, loadedDowntime, loadedUtilization] = await Promise.all([
         getCar(carId), getRepairsForCar(carId), getTripsForCar(carId), getComplianceRecordsForCar(carId), getCurrentAssignments(), getDrivers(), getServicePlans(carId), getFines({ carId }),
+        getDowntime(carId), getUtilization(month.from, month.to, currency),
       ]);
+      setDowntime(loadedDowntime); setUtilization(loadedUtilization.find((row) => row.carId === carId) ?? null);
       setCar(loadedCar); setRepairs(loadedRepairs); setTrips(loadedTrips); setDocs(latestDocuments(loadedDocs, (doc) => doc.carId));
       setDrivers(loadedDrivers); setPlans(loadedPlans); setFines(loadedFines);
       const drivers = loadedDrivers;
@@ -91,7 +104,7 @@ export default function VehiclePage() {
       setCurrentDriver(driver ? { id: driver.id, name: driver.fullName } : null);
     } catch (caught) { setError(caught); }
     finally { setLoading(false); }
-  }, [carId, user]);
+  }, [carId, currency, user]);
 
   useEffect(() => { if (user) void load(); }, [load, user]);
   // Converted server-side with ECB rates; refetched whenever entries or the display currency change.
@@ -130,6 +143,8 @@ export default function VehiclePage() {
   const odometer = car ? estimatedMileage(car, rate) : null;
   const documentKinds = car ? [...requiredCarDocuments(car), ...optionalCarDocuments(car).filter((kind) => documentFor(kind))] : [];
   const missingOptional = car ? optionalCarDocuments(car).filter((kind) => !documentFor(kind)) : [];
+  const openDowntime = downtime.find((period) => period.endsOn === null) ?? null;
+  const periodDays = (period: Downtime) => daysSince(period.startsOn) - (period.endsOn ? daysSince(period.endsOn) - 1 : 0);
   if (!Number.isInteger(carId)) return <AppShell><ErrorAlert error={new Error('Invalid vehicle ID.')} /></AppShell>;
 
   return <AppShell>
@@ -147,6 +162,21 @@ export default function VehiclePage() {
           ? <Link href={`/drivers/${currentDriver.id}`} className="vehicle-driver-link"><i className="bi bi-person" aria-hidden="true" /><span>{t('driver')}: <strong>{currentDriver.name}</strong></span><i className="bi bi-chevron-right" aria-hidden="true" /></Link>
           : <Link href="/drivers" className="vehicle-driver-link muted"><i className="bi bi-person" aria-hidden="true" /><span>{t('noDriverAssigned')}</span><i className="bi bi-chevron-right" aria-hidden="true" /></Link>}
       </div>
+      {openDowntime ? (
+        <div className="vehicle-state state-off-road" role="status">
+          <i className="bi bi-wrench-adjustable" aria-hidden="true" />
+          <span className="flex-grow-1"><strong className="d-block">{t('offRoadSince').replace('{date}', localDate(openDowntime.startsOn, language))} · {t(`downtime_${openDowntime.reason}` as const)}</strong>
+            <span className="small">{t('daysCount').replace('{n}', String(daysSince(openDowntime.startsOn)))}{utilization?.weeklyRent ? ` · ${t('missedRentApprox').replace('{amount}', money(missedRent(daysSince(openDowntime.startsOn), utilization.weeklyRent), currency, language))}` : ''}{openDowntime.notes ? ` · ${openDowntime.notes}` : ''}</span></span>
+          <button className="btn btn-sm btn-primary" onClick={() => setEndingDowntime(openDowntime)}>{t('backOnRoad')}</button>
+        </div>
+      ) : car.ridesharing && utilization?.state === 'idle' && (
+        <div className="vehicle-state state-idle" role="status">
+          <i className="bi bi-hourglass-split" aria-hidden="true" />
+          <span className="flex-grow-1"><strong className="d-block">{t('waitingForDriverSince').replace('{date}', localDate(utilization.stateSince, language))}</strong>
+            <span className="small">{t('daysCount').replace('{n}', String(daysSince(utilization.stateSince)))}{utilization.weeklyRent ? ` · ${t('missedRentApprox').replace('{amount}', money(missedRent(daysSince(utilization.stateSince), utilization.weeklyRent), currency, language))}` : ''}</span></span>
+          <Link href="/drivers" className="btn btn-sm btn-primary">{t('assignDriver')}</Link>
+        </div>
+      )}
       {car.locked && (
         <div className="vehicle-locked-banner" role="status">
           <span><i className="bi bi-lock me-2" aria-hidden="true" />{t('vehicleLockedBanner')}</span>
@@ -157,6 +187,7 @@ export default function VehiclePage() {
         <button className="btn btn-primary btn-island" onClick={() => { setEditingRepair(null); setRepairOpen(true); }}>{t('add')} {t('repair').toLowerCase()}<span className="btn-island-icon"><i className="bi bi-tools" /></span></button>
         <button className="btn btn-outline-secondary" onClick={() => { setEditingTrip(null); setTripOpen(true); }}><i className="bi bi-signpost-split me-2" />{t('add')} {t('trip').toLowerCase()}</button>
         <button className="btn btn-outline-secondary" onClick={() => setFineForm({ fine: null })}><i className="bi bi-receipt me-2" />{t('addFine')}</button>
+        {!openDowntime && <button className="btn btn-outline-secondary" onClick={() => setDowntimeForm({ downtime: null })}><i className="bi bi-cone-striped me-2" />{t('takeOffRoad')}</button>}
       </div>
 
       {car.photoUrl && <div className="app-panel section-gap"><img src={car.photoUrl} alt={`${car.brand} ${car.model}`} className="vehicle-photo" /></div>}
@@ -169,6 +200,7 @@ export default function VehiclePage() {
         <div className="stat-item"><span className="metric-label">{t('totalCost')}</span><strong className="metric-value">{money(totalCost, currency, language)}</strong></div>
         <div className="stat-item"><span className="metric-label">{t('loggedDistance')}</span><strong className="metric-value">{number(metrics.totalDistance, language, 0)} km</strong></div>
         <div className="stat-item"><span className="metric-label">{t('avgConsumption')}</span><strong className="metric-value">{number(metrics.average, language)} L/100</strong></div>
+        {utilization && utilization.days > 0 && <div className="stat-item"><span className="metric-label">{t('utilizationThisMonth')}</span><strong className="metric-value">{number(utilization.drivenDays / utilization.days * 100, language, 0)}%</strong><span className="small text-body-secondary">{t('utilizationDetail').replace('{idle}', String(utilization.idleDays)).replace('{off}', String(utilization.downtimeDays))}</span></div>}
       </div>
 
       <section className="section-gap">
@@ -203,6 +235,17 @@ export default function VehiclePage() {
         {plans.length > 0 && <p className="small text-body-secondary mt-3 mb-0">{rate ? t('serviceRateHint').replace('{km}', number(rate * 7, language, 0)).replace('{odometer}', odometer === null ? '-' : number(odometer, language, 0)) : t('serviceNoRateHint')}</p>}
       </section>
 
+      {downtime.length > 0 && <section className="section-gap">
+        <SectionHeader title={t('offRoadHistory')} />
+        <div className="data-list">{downtime.map((period) => (
+          <button key={period.id} className="data-row w-100 text-start" onClick={() => setDowntimeForm({ downtime: period })}>
+            <span className={`row-icon ${period.endsOn ? '' : 'tone-warning'}`}><i className="bi bi-cone-striped" /></span>
+            <span className="data-row-main"><span className="data-row-title">{t(`downtime_${period.reason}` as const)}{period.notes ? ` · ${period.notes}` : ''}</span><span className="data-row-subtitle">{localDate(period.startsOn, language)} - {period.endsOn ? localDate(period.endsOn, language) : t('current')}</span></span>
+            <StatusPill tone={period.endsOn ? 'neutral' : 'warning'}>{t('daysCount').replace('{n}', String(periodDays(period)))}</StatusPill>
+          </button>
+        ))}</div>
+      </section>}
+
       {fines.length > 0 && <section className="section-gap">
         <SectionHeader title={t('fines')} action={<button className="btn btn-sm btn-outline-secondary" onClick={() => setFineForm({ fine: null })}><i className="bi bi-plus-lg me-1" />{t('addFine')}</button>} />
         <FineList fines={fines} cars={[car]} drivers={drivers} showCar={false} onEdit={(fine) => setFineForm({ fine })} onPay={setPayingFine} onChanged={() => load(true)} />
@@ -223,6 +266,8 @@ export default function VehiclePage() {
       <CompleteServiceForm plan={completing} estimatedKm={odometer} onClose={() => setCompleting(null)} onSaved={async () => { await load(true); toast(t('serviceLogged')); }} />
       <FineForm show={fineForm !== null} fine={fineForm?.fine ?? null} cars={[car]} drivers={drivers} defaultCarId={car.id} onClose={() => setFineForm(null)} onSaved={async () => { await load(true); toast(t('fineSaved')); }} />
       <FinePaidForm fine={payingFine} onClose={() => setPayingFine(null)} onSaved={async () => { await load(true); toast(t('fineSaved')); }} />
+      <DowntimeForm show={downtimeForm !== null} carId={car.id} downtime={downtimeForm?.downtime ?? null} onClose={() => setDowntimeForm(null)} onSaved={async () => { await load(true); toast(t('downtimeSaved')); }} onDelete={async (period) => { await deleteDowntime(period.id); await load(true); toast(t('deletedItem')); }} />
+      <BackOnRoadForm downtime={endingDowntime} onClose={() => setEndingDowntime(null)} onSaved={async () => { await load(true); toast(t('backOnRoadSaved')); }} />
       <Modal title={t('addDocument')} show={addDocOpen} onClose={() => setAddDocOpen(false)} variant="modal">
         <div className="modal-body"><div className="data-list">{missingOptional.map((kind) => <button key={kind} className="data-row w-100 text-start" onClick={() => { setAddDocOpen(false); setDocKind(kind); }}><span className="row-icon"><i className={`bi ${CAR_DOCUMENTS[kind].icon}`} /></span><span className="data-row-main"><span className="data-row-title">{t(CAR_DOCUMENTS[kind].label)}</span></span><i className="bi bi-chevron-right text-body-secondary" /></button>)}</div></div>
       </Modal>

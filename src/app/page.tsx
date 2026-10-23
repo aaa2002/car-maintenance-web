@@ -7,9 +7,9 @@ import { useAuth, useSettings } from '@/components/providers';
 import { Empty, ErrorAlert, ListSkeleton, Modal, PageHeader, SectionHeader, stagger, StatusPill, useToast } from '@/components/ui';
 import { atVehicleLimit, getBillingOverview, planLabel, type BillingOverview } from '@/lib/billing';
 import { VehicleForm } from '@/components/vehicle-form';
-import { createCar, getCars, getComplianceRecordsForCars, getDailySpendForMonth, getDoneTripsSince, getFleetProfit, getFuelUse, getScheduledRepairs, getScheduledTrips, getServicePlans, latestDocuments, type Car, type CarProfit, type ComplianceRecord, type FuelUse, type Repair, type ServicePlan, type Trip } from '@/lib/database';
+import { createCar, getCars, getComplianceRecordsForCars, getDailySpendForMonth, getDoneTripsSince, getFleetProfit, getFuelUse, getScheduledRepairs, getScheduledTrips, getServicePlans, getUtilization, latestDocuments, type Car, type CarProfit, type CarUtilization, type ComplianceRecord, type FuelUse, type Repair, type ServicePlan, type Trip } from '@/lib/database';
 import { getDriverDocuments, getDrivers, type Driver, type DriverDocument } from '@/lib/drivers';
-import { CAR_DOCUMENTS, carLabel, dailyKm, documentState, DRIVER_DOCUMENTS, estimatedMileage, fuelAlerts, RATE_WINDOW_DAYS, serviceDue } from '@/lib/fleet';
+import { CAR_DOCUMENTS, carLabel, dailyKm, daysSince, documentState, DRIVER_DOCUMENTS, estimatedMileage, fleetUtilization, fuelAlerts, IDLE_ALERT_DAYS, missedRent, RATE_WINDOW_DAYS, serviceDue } from '@/lib/fleet';
 import { discountOpen, getFines, needsDriverNamed, type Fine } from '@/lib/fines';
 import { addDays, countLabel, daysUntil, localDate, money, monthBounds, monthRange, number, today } from '@/lib/format';
 
@@ -39,6 +39,7 @@ export default function GaragePage() {
   const [fines, setFines] = useState<Fine[]>([]);
   const [fuel, setFuel] = useState<FuelUse[]>([]);
   const [profit, setProfit] = useState<{ current: CarProfit[]; previous: CarProfit[] }>({ current: [], previous: [] });
+  const [utilization, setUtilization] = useState<CarUtilization[]>([]);
   const [monthSpend, setMonthSpend] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
@@ -68,10 +69,12 @@ export default function GaragePage() {
         getFuelUse(addDays(today(), -27), today()),
       ]);
       const [thisMonth, lastMonth] = [monthRange(0, 'en'), monthRange(-1, 'en')];
-      const [currentProfit, previousProfit] = loadedDrivers.length
-        ? await Promise.all([getFleetProfit(thisMonth.from, thisMonth.to, currency), getFleetProfit(lastMonth.from, lastMonth.to, currency)])
-        : [[], []];
-      setProfit({ current: currentProfit, previous: previousProfit });
+      const [currentProfit, previousProfit, loadedUtilization] = await Promise.all([
+        loadedDrivers.length ? getFleetProfit(thisMonth.from, thisMonth.to, currency) : [],
+        loadedDrivers.length ? getFleetProfit(lastMonth.from, lastMonth.to, currency) : [],
+        getUtilization(thisMonth.from, thisMonth.to, currency),
+      ]);
+      setProfit({ current: currentProfit, previous: previousProfit }); setUtilization(loadedUtilization);
       setBilling(overview);
       setCars(loadedCars); setRepairs(loadedRepairs); setTrips(loadedTrips); setDocs(latestDocuments(loadedDocs, (doc) => doc.carId));
       setDriverDocs(latestDocuments(loadedDriverDocs, (doc) => doc.driverId)); setDrivers(loadedDrivers); setPlans(loadedPlans);
@@ -131,6 +134,19 @@ export default function GaragePage() {
       const detail = due.kmLeft !== null ? (due.kmLeft < 0 ? t('kmOverdue').replace('{n}', number(-due.kmLeft, language, 0)) : t('kmLeft').replace('{n}', number(due.kmLeft, language, 0))) : due.dueDate ? localDate(due.dueDate, language) : '';
       items.push({ key: `plan-${plan.id}`, title: `${plan.title} · ${carLabel(car)}`, subtitle: detail, days: due.dueDate ? daysUntil(due.dueDate) : 0, tone: due.state === 'overdue' ? 'danger' : 'warning', icon: 'bi-wrench-adjustable', href: `/vehicles/${car.id}`, label: t(`service_${due.state}`) });
     });
+    // Cars that are not earning: waiting for a driver or off the road. Short gaps between drivers are normal.
+    utilization.forEach((row) => {
+      const car = carMap.get(row.carId);
+      const days = daysSince(row.stateSince);
+      if (!car || row.state === 'driving' || days < IDLE_ALERT_DAYS) return;
+      const lost = missedRent(days, row.weeklyRent);
+      items.push({
+        key: `state-${row.carId}`, title: `${t(row.state === 'idle' ? 'waitingForDriver' : 'offRoad')} · ${carLabel(car)}`,
+        subtitle: [t('sinceDate').replace('{date}', localDate(row.stateSince, language)), lost ? t('missedRentApprox').replace('{amount}', money(lost, currency, language)) : null].filter(Boolean).join(' · '),
+        days: -days, tone: days >= 14 ? 'danger' : 'warning', icon: row.state === 'idle' ? 'bi-hourglass-split' : 'bi-cone-striped',
+        href: `/vehicles/${row.carId}`, label: t('daysCount').replace('{n}', String(days)),
+      });
+    });
     fuelAlerts(fuel).forEach((alert) => {
       const car = carMap.get(alert.carId);
       const driver = alert.driverId ? driverMap.get(alert.driverId) : undefined;
@@ -149,7 +165,7 @@ export default function GaragePage() {
       items.push({ key: `trip-${trip.id}`, title: `${number(trip.distance, language)} km`, subtitle: `${car?.brand ?? ''} ${car?.model ?? ''} · ${localDate(trip.date, language)}`, days: daysUntil(trip.date), tone: 'brand', icon: 'bi-signpost-split', href: `/vehicles/${trip.carId}?trip=${trip.id}`, label: t('scheduledTrip') });
     });
     return items.sort((a, b) => a.days - b.days);
-  }, [carMap, docs, driverDocs, drivers, fines, plans, recentTrips, fuel, repairs, trips, language, t]);
+  }, [carMap, docs, driverDocs, drivers, fines, plans, recentTrips, fuel, utilization, repairs, trips, language, currency, t]);
   const [showAllAttention, setShowAllAttention] = useState(false);
   const visibleAttention = showAllAttention ? attention : attention.slice(0, 8);
 
@@ -163,6 +179,7 @@ export default function GaragePage() {
     return map;
   }, [docs]);
 
+  const stateMap = useMemo(() => new Map(utilization.map((row) => [row.carId, row])), [utilization]);
   const displayName = user?.user_metadata.display_name as string | undefined;
   const healthyDocs = docs.filter((doc) => documentState(doc.expiresDate) === 'valid').length;
 
@@ -185,7 +202,7 @@ export default function GaragePage() {
           <div className="bento-tile reveal" style={stagger(1)}><span className="metric-label">{t('vehicles')}</span><strong className="metric-value">{cars.length}</strong></div>
           <div className="bento-tile reveal" style={stagger(2)}><span className="metric-label">{t('attentionItems')}</span><strong className={`metric-value ${attention.length ? 'text-warning' : ''}`}>{attention.length}</strong></div>
           <div className="bento-tile bento-wide reveal" style={stagger(3)}><span className="metric-label">{t('healthyDocuments')}</span><strong className="metric-value">{healthyDocs}</strong></div>
-          {(profit.current.length > 0 || profit.previous.length > 0) && <ProfitTile current={profit.current} previous={profit.previous} carMap={carMap} />}
+          {(profit.current.length > 0 || profit.previous.length > 0) && <ProfitTile current={profit.current} previous={profit.previous} utilization={utilization} carMap={carMap} />}
         </div>
       )}
 
@@ -211,6 +228,11 @@ export default function GaragePage() {
                 {car.locked
                   ? <span className="vehicle-tile-flag"><StatusPill tone="neutral"><i className="bi bi-lock me-1" aria-hidden="true" />{t('readOnly')}</StatusPill></span>
                   : warning && <span className="vehicle-tile-flag"><StatusPill tone={warning}>{warning === 'danger' ? t('expired') : t('expiresSoon')}</StatusPill></span>}
+                {(() => {
+                  const state = stateMap.get(car.id);
+                  if (!state || state.state === 'driving') return null;
+                  return <span className="vehicle-tile-state"><StatusPill tone={state.state === 'idle' ? 'warning' : 'neutral'}><i className={`bi ${state.state === 'idle' ? 'bi-hourglass-split' : 'bi-cone-striped'} me-1`} aria-hidden="true" />{t(state.state === 'idle' ? 'idleDays' : 'offRoadDays').replace('{n}', String(daysSince(state.stateSince)))}</StatusPill></span>;
+                })()}
               </span>
               <span className="vehicle-tile-body">
                 <span className="min-w-0"><span className="vehicle-tile-title truncate">{car.brand} {car.model}</span><span className="vehicle-tile-meta truncate">{car.plateNumber || car.description || car.year}</span></span>
@@ -235,7 +257,7 @@ export default function GaragePage() {
 }
 
 /** Month-to-date fleet profit against last month's total, with the best and weakest vehicle: a goal to beat. */
-function ProfitTile({ current, previous, carMap }: { current: CarProfit[]; previous: CarProfit[]; carMap: Map<number, Car> }) {
+function ProfitTile({ current, previous, utilization, carMap }: { current: CarProfit[]; previous: CarProfit[]; utilization: CarUtilization[]; carMap: Map<number, Car> }) {
   const { t, language, currency } = useSettings();
   const sum = (rows: CarProfit[], key: 'income' | 'repairCost' | 'fineCost' | 'profit') => rows.reduce((total, row) => total + row[key], 0);
   const profit = sum(current, 'profit'); const income = sum(current, 'income'); const costs = sum(current, 'repairCost') + sum(current, 'fineCost');
@@ -247,6 +269,8 @@ function ProfitTile({ current, previous, carMap }: { current: CarProfit[]; previ
   const weakest = ranked.length > 1 ? ranked.at(-1)! : null;
   const signed = (value: number) => `${value < 0 ? '-' : '+'}${money(Math.abs(value), currency, language)}`;
   const carName = (row: CarProfit) => { const car = carMap.get(row.carId!)!; return `${car.brand} ${car.model}`; };
+  const used = fleetUtilization(utilization);
+  const missed = utilization.reduce((sum, row) => sum + missedRent(row.idleDays + row.downtimeDays, row.weeklyRent), 0);
 
   return (
     <div className="bento-tile bento-profit reveal" style={stagger(4)}>
@@ -260,9 +284,15 @@ function ProfitTile({ current, previous, carMap }: { current: CarProfit[]; previ
             : t('profitProgress').replace('{n}', number(progress * 100, language, 0)).replace('{month}', lastMonth).replace('{amount}', money(target, currency, language))}</span>
         </> : <span className="small text-body-secondary">{t('profitHint')}</span>}
       </div>
+
       <div className="profit-breakdown">
         <div className="profit-line"><span className="metric-label">{t('profitIncome')}</span><strong className="num">{money(income, currency, language)}</strong></div>
         <div className="profit-line"><span className="metric-label">{t('profitCosts')}</span><strong className="num">{costs ? `-${money(costs, currency, language)}` : money(0, currency, language)}</strong></div>
+        {used !== null && <div className="profit-utilization">
+          <span className="metric-label">{t('fleetUtilization')}</span>
+          <strong className="num">{number(used * 100, language, 0)}%</strong>
+          {missed > 0 && <span className="small text-warning">{t('missedRentThisMonth').replace('{amount}', money(missed, currency, language))}</span>}
+        </div>}
         {best && <Link href={`/vehicles/${best.carId}`} className="profit-car"><i className="bi bi-trophy" aria-hidden="true" /><span className="truncate">{t('profitBest')}: {carName(best)}</span><strong className="num text-success">{signed(best.profit)}</strong></Link>}
         {weakest && weakest !== best && <Link href={`/vehicles/${weakest.carId}`} className="profit-car"><i className={`bi ${weakest.profit < 0 ? 'bi-graph-down-arrow' : 'bi-arrow-down-right'}`} aria-hidden="true" /><span className="truncate">{t(weakest.profit < 0 ? 'profitLosing' : 'profitLowest')}: {carName(weakest)}</span><strong className={`num ${weakest.profit < 0 ? 'text-danger' : ''}`}>{signed(weakest.profit)}</strong></Link>}
       </div>
