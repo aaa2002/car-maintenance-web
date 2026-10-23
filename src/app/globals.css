@@ -256,6 +256,16 @@ button.stat-item:disabled .bi-pencil { display: none; }
 .settings-choice button { flex: 1; }
 .settings-reminder { display: flex; align-items: flex-start; gap: 14px; padding: 18px 20px; }
 
+/* Legal pages: a public reading column, usable before sign-in. */
+.legal-page { width: min(720px, 100%); margin-inline: auto; padding: 28px 20px 64px; }
+.legal-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 36px; }
+.legal-body { line-height: 1.6; }
+.legal-body .page-subtitle { margin-bottom: 28px; }
+.legal-body h2 { margin: 32px 0 10px; font-size: 1.15rem; font-weight: 640; letter-spacing: -.02em; }
+.legal-body p, .legal-body li { color: var(--app-text); }
+.legal-body li { margin-bottom: 6px; }
+.auth-legal { margin-top: 20px; text-align: center; font-size: .84rem; color: var(--app-text-muted); }
+
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .min-w-0 { min-width: 0; }
 @keyframes shimmer { to { transform: translateX(100%); } }

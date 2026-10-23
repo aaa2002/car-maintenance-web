@@ -46,9 +46,10 @@ const FUNCTION_ERRORS = {
   no_customer: 'billingNoSubscription',
   origin_not_allowed: 'billingUnavailable',
   unknown_plan: 'billingUnavailable',
+  confirmation_mismatch: 'deleteAccountMismatch',
 } as const;
 
-async function invoke<T>(name: string, body: Record<string, unknown>): Promise<T> {
+export async function invoke<T>(name: string, body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke<T>(name, { body });
   if (error) {
     const code = error instanceof FunctionsHttpError ? (await error.context.json().catch(() => null))?.error : null;
