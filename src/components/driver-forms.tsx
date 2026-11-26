@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import type { Car, Currency } from '@/lib/database';
-import { assignDriver, createDriver, createSettlement, endAssignment, settlementNet, updateDriver, updateSettlement, type Assignment, type Driver, type Settlement, type SettlementInput } from '@/lib/drivers';
+import { assignDriver, createDriver, createSettlement, emptyBilling, endAssignment, settlementNet, updateDriver, updateSettlement, type Assignment, type Driver, type DriverBilling, type Settlement, type SettlementInput } from '@/lib/drivers';
 import { chargeAmount, getFinesForSettlement, getOpenFinesForDriver, linkFinesToSettlement, type Fine } from '@/lib/fines';
 import { addDays, errorMessage, localDate, mondayOf, money, today } from '@/lib/format';
+import { BUCHAREST_SECTORS, COUNTIES, validCnp, validCui, validIban } from '@/lib/romania';
 import { DateField } from './date-field';
 import { useSettings } from './providers';
 import { Modal } from './ui';
@@ -18,9 +19,13 @@ export function DriverForm({ show, driver, onClose, onSave }: { show: boolean; d
   const [license, setLicense] = useState(''); const [notes, setNotes] = useState(''); const [active, setActive] = useState(true);
   const [rent, setRent] = useState(''); const [commission, setCommission] = useState(''); const [termErrors, setTermErrors] = useState<Record<string, string>>({});
   const [nameError, setNameError] = useState(''); const [formError, setFormError] = useState(''); const [busy, setBusy] = useState(false);
+  const [boltId, setBoltId] = useState(''); const [uberId, setUberId] = useState(''); const [iban, setIban] = useState('');
+  const [billing, setBilling] = useState<DriverBilling>(emptyBilling); const [billingErrors, setBillingErrors] = useState<Record<string, string>>({});
+  const setBillingField = (key: keyof DriverBilling, value: string) => setBilling((current) => ({ ...current, [key]: value }));
 
   useEffect(() => {
     if (!show) return;
+    setBoltId(driver?.boltDriverId ?? ''); setUberId(driver?.uberDriverId ?? ''); setIban(driver?.iban ?? ''); setBilling(driver?.billing ?? emptyBilling); setBillingErrors({});
     setFullName(driver?.fullName ?? ''); setPhone(driver?.phone ?? ''); setEmail(driver?.email ?? ''); setLicense(driver?.licenseNumber ?? '');
     setNotes(driver?.notes ?? ''); setActive(driver?.active ?? true); setNameError(''); setFormError('');
     setRent(driver?.weeklyRent?.toString() ?? ''); setCommission(driver?.commissionRate?.toString() ?? ''); setTermErrors({});
@@ -33,11 +38,16 @@ export function DriverForm({ show, driver, onClose, onSave }: { show: boolean; d
     if (weeklyRent !== null && (!Number.isFinite(weeklyRent) || weeklyRent < 0)) nextTermErrors.rent = t('invalidNumber');
     if (commissionRate !== null && (!Number.isFinite(commissionRate) || commissionRate < 0 || commissionRate > 100)) nextTermErrors.commission = t('percentInvalid');
     setTermErrors(nextTermErrors);
+    const nextBillingErrors: Record<string, string> = {};
+    if (iban.trim() && !validIban(iban)) nextBillingErrors.iban = t('ibanInvalid');
+    const taxId = billing.taxId?.trim() ?? '';
+    if (taxId && !validCui(taxId) && !validCnp(taxId)) nextBillingErrors.taxId = t('taxIdInvalid');
+    setBillingErrors(nextBillingErrors);
     if (fullName.trim().length < 2) { setNameError(t('requiredFields')); return; }
-    if (Object.keys(nextTermErrors).length) return;
+    if (Object.keys(nextTermErrors).length || Object.keys(nextBillingErrors).length) return;
     setNameError(''); setBusy(true);
     try {
-      const input = { fullName, phone, email, licenseNumber: license, notes, active, weeklyRent, commissionRate };
+      const input = { fullName, phone, email, licenseNumber: license, notes, active, weeklyRent, commissionRate, boltDriverId: boltId, uberDriverId: uberId, iban, billing };
       const id = driver ? (await updateDriver(driver.id, input), driver.id) : await createDriver(input);
       await onSave(id); onClose();
     } catch (caught) { setFormError(errorMessage(caught, t)); }
@@ -54,11 +64,40 @@ export function DriverForm({ show, driver, onClose, onSave }: { show: boolean; d
       <div className="col-12"><span className="form-label d-block mb-0">{t('weeklyTerms')}</span><span className="form-text mt-0">{t('weeklyTermsHint')}</span></div>
       <div className="col-sm-6"><label className="form-label" htmlFor="driver-rent">{t('weeklyRent')}</label><input id="driver-rent" inputMode="decimal" type="number" min="0" step="0.01" className={`form-control ${termErrors.rent ? 'is-invalid' : ''}`} value={rent} onChange={(event) => setRent(event.target.value)} /><FieldError error={termErrors.rent} /></div>
       <div className="col-sm-6"><label className="form-label" htmlFor="driver-commission">{t('commissionRate')}</label><div className="input-group"><input id="driver-commission" inputMode="decimal" type="number" min="0" max="100" step="0.1" className={`form-control ${termErrors.commission ? 'is-invalid' : ''}`} value={commission} onChange={(event) => setCommission(event.target.value)} /><span className="input-group-text">%</span><FieldError error={termErrors.commission} /></div></div>
+      <div className="col-12"><label className="form-label" htmlFor="driver-iban">{t('iban')}</label><input id="driver-iban" className={`form-control text-uppercase ${billingErrors.iban ? 'is-invalid' : ''}`} autoComplete="off" spellCheck={false} placeholder="RO49 AAAA 1B31 0075 9384 0000" value={iban} onChange={(event) => setIban(event.target.value)} /><FieldError error={billingErrors.iban} /><div className="form-text">{t('ibanHint')}</div></div>
+      <div className="col-12"><details className="form-details" open={Boolean(driver || billing.name || billing.taxId || billingErrors.taxId)}>
+        <summary>{t('billingDetails')}<span className="form-text d-block mt-0 fw-normal">{t('billingDetailsHint')}</span></summary>
+        <div className="row g-3 mt-0">
+          <div className="col-sm-7"><label className="form-label" htmlFor="driver-billing-name">{t('billingName')}</label><input id="driver-billing-name" className="form-control" maxLength={200} placeholder={fullName || undefined} value={billing.name ?? ''} onChange={(event) => setBillingField('name', event.target.value)} /></div>
+          <div className="col-sm-5"><label className="form-label" htmlFor="driver-billing-tax">{t('taxIdOrCnp')}</label><input id="driver-billing-tax" className={`form-control ${billingErrors.taxId ? 'is-invalid' : ''}`} maxLength={20} value={billing.taxId ?? ''} onChange={(event) => setBillingField('taxId', event.target.value)} /><FieldError error={billingErrors.taxId} /></div>
+          <div className="col-sm-5"><label className="form-label" htmlFor="driver-billing-reg">{t('regNo')}</label><input id="driver-billing-reg" className="form-control" maxLength={40} placeholder="F40/1234/2024" value={billing.regNo ?? ''} onChange={(event) => setBillingField('regNo', event.target.value)} /></div>
+          <div className="col-sm-7"><label className="form-label" htmlFor="driver-billing-address">{t('streetAddress')}</label><input id="driver-billing-address" className="form-control" maxLength={200} value={billing.address ?? ''} onChange={(event) => setBillingField('address', event.target.value)} /></div>
+          <CountyCityFields idPrefix="driver-billing" county={billing.county ?? ''} city={billing.city ?? ''} onCounty={(value) => setBillingField('county', value)} onCity={(value) => setBillingField('city', value)} />
+        </div>
+      </details></div>
+      <div className="col-12"><details className="form-details" open={Boolean(boltId || uberId)}>
+        <summary>{t('platformIds')}<span className="form-text d-block mt-0 fw-normal">{t('platformIdsHint')}</span></summary>
+        <div className="row g-3 mt-0">
+          <div className="col-sm-6"><label className="form-label" htmlFor="driver-bolt-id">{t('boltDriverId')}</label><input id="driver-bolt-id" className="form-control font-monospace small" autoComplete="off" spellCheck={false} value={boltId} onChange={(event) => setBoltId(event.target.value)} /></div>
+          <div className="col-sm-6"><label className="form-label" htmlFor="driver-uber-id">{t('uberDriverId')}</label><input id="driver-uber-id" className="form-control font-monospace small" autoComplete="off" spellCheck={false} value={uberId} onChange={(event) => setUberId(event.target.value)} /></div>
+        </div>
+      </details></div>
       <div className="col-12"><label className="form-label" htmlFor="driver-notes">{t('notes')}</label><textarea id="driver-notes" className="form-control" rows={2} maxLength={500} value={notes} onChange={(event) => setNotes(event.target.value)} /></div>
       <FormAlert error={formError} />
     </div></div>
     <div className="modal-footer"><button type="button" className="btn btn-outline-secondary" onClick={onClose}>{t('cancel')}</button><button className="btn btn-primary" disabled={busy}>{busy && <span className="spinner-border spinner-border-sm me-2" />}{t('save')}</button></div>
   </form></Modal>;
+}
+
+/** County select plus city; for Bucharest the city is one of its six sectors, as e-Factura requires. */
+export function CountyCityFields({ idPrefix, county, city, onCounty, onCity, required = false, invalid = {} }: { idPrefix: string; county: string; city: string; onCounty: (value: string) => void; onCity: (value: string) => void; required?: boolean; invalid?: { county?: string; city?: string } }) {
+  const { t } = useSettings();
+  return <>
+    <div className="col-sm-6"><label className={`form-label ${required ? 'required' : ''}`} htmlFor={`${idPrefix}-county`}>{t('county')}</label><select id={`${idPrefix}-county`} className={`form-select ${invalid.county ? 'is-invalid' : ''}`} value={county} onChange={(event) => { onCounty(event.target.value); if (event.target.value === 'RO-B' && !BUCHAREST_SECTORS.includes(city)) onCity(''); }}><option value="">-</option>{COUNTIES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select><FieldError error={invalid.county} /></div>
+    <div className="col-sm-6"><label className={`form-label ${required ? 'required' : ''}`} htmlFor={`${idPrefix}-city`}>{county === 'RO-B' ? t('sector') : t('city')}</label>{county === 'RO-B'
+      ? <select id={`${idPrefix}-city`} className={`form-select ${invalid.city ? 'is-invalid' : ''}`} value={city} onChange={(event) => onCity(event.target.value)}><option value="">-</option>{BUCHAREST_SECTORS.map((sector) => <option key={sector} value={sector}>{t('sector')} {sector.slice(-1)}</option>)}</select>
+      : <input id={`${idPrefix}-city`} className={`form-control ${invalid.city ? 'is-invalid' : ''}`} maxLength={100} value={city} onChange={(event) => onCity(event.target.value)} />}<FieldError error={invalid.city} /></div>
+  </>;
 }
 
 /** Assigns a vehicle from a date; any open assignment of this driver or this vehicle is closed the day before. */
@@ -116,9 +155,11 @@ export function EndAssignmentForm({ assignment, onClose, onSaved }: { assignment
 
 const AMOUNT_FIELDS = [
   ['boltEarnings', 'boltEarnings'], ['uberEarnings', 'uberEarnings'], ['bonuses', 'bonuses'], ['fleetCommission', 'fleetCommission'],
-  ['vehicleRent', 'vehicleRent'], ['expenses', 'expenses'], ['fines', 'fines'], ['manualAdjustment', 'adjustment'], ['amountSettled', 'amountSettled'],
+  ['vehicleRent', 'vehicleRent'], ['expenses', 'expenses'], ['fines', 'fines'], ['cashCollected', 'cashCollected'], ['manualAdjustment', 'adjustment'], ['amountSettled', 'amountSettled'],
 ] as const;
 type AmountKey = (typeof AMOUNT_FIELDS)[number][0];
+/** Platform weeks can be negative after refunds; the adjustment goes either way. */
+const SIGNED_FIELDS = new Set<AmountKey>(['boltEarnings', 'uberEarnings', 'manualAdjustment']);
 
 /** One driver's week: earnings, what the fleet deducts, and what has been paid. Weeks always start on Monday. */
 /** Commission as a share of the week's platform earnings, rounded to bani. */
@@ -175,12 +216,16 @@ export function SettlementForm({ show, driver, settlement, cars, defaultCarId, o
     const nextErrors: Record<string, string> = {};
     for (const [key] of AMOUNT_FIELDS) {
       const value = numbers[key];
-      if (!Number.isFinite(value) || (key !== 'manualAdjustment' && value < 0)) nextErrors[key] = t('invalidNumber');
+      if (!Number.isFinite(value) || (!SIGNED_FIELDS.has(key) && value < 0)) nextErrors[key] = t('invalidNumber');
     }
     if (dueDate < weekStart) nextErrors.dueDate = t('expiryDateError');
     setErrors(nextErrors); if (Object.keys(nextErrors).length) return;
     const car = cars.find((value) => value.id === Number(carId));
-    const input: SettlementInput = { driverId, carId: car?.id ?? null, vehicleLabel: car ? `${car.brand} ${car.model} (${car.year})` : null, weekStart, dueDate, currency: entryCurrency, notes, ...numbers };
+    const paid = numbers.amountSettled > 0;
+    const input: SettlementInput = {
+      driverId, carId: car?.id ?? null, vehicleLabel: car ? `${car.brand} ${car.model} (${car.year})` : null, weekStart, dueDate, currency: entryCurrency, notes, ...numbers,
+      paidOn: paid ? settlement?.paidOn ?? today() : null, paymentMethod: paid ? settlement?.paymentMethod ?? 'bank' : null,
+    };
     setBusy(true);
     try {
       const id = settlement ? (await updateSettlement(settlement.id, input), settlement.id) : await createSettlement(input);
@@ -198,7 +243,7 @@ export function SettlementForm({ show, driver, settlement, cars, defaultCarId, o
       <div className="col-sm-8"><label className="form-label" htmlFor="settlement-car">{t('vehicle')}</label><select id="settlement-car" className="form-select" value={carId} onChange={(event) => setCarId(event.target.value)}><option value="">-</option>{cars.map((car) => <option key={car.id} value={car.id}>{car.brand} {car.model} ({car.year})</option>)}</select></div>
       <div className="col-sm-4"><label className="form-label" htmlFor="settlement-currency">{t('currency')}</label><select id="settlement-currency" className="form-select" value={entryCurrency} onChange={(event) => setEntryCurrency(event.target.value as Currency)}><option>RON</option><option>EUR</option></select></div>
       {AMOUNT_FIELDS.map(([key, label]) => (
-        <div className="col-6 col-md-4" key={key}><label className="form-label" htmlFor={`settlement-${key}`}>{t(label)}</label><input id={`settlement-${key}`} inputMode="decimal" type="number" step="0.01" min={key === 'manualAdjustment' ? undefined : 0} className={`form-control ${errors[key] ? 'is-invalid' : ''}`} value={amounts[key] ?? ''} onChange={(event) => changeAmount(key, event.target.value)} /><FieldError error={errors[key]} /></div>
+        <div className="col-6 col-md-4" key={key}><label className="form-label" htmlFor={`settlement-${key}`}>{t(label)}</label><input id={`settlement-${key}`} inputMode="decimal" type="number" step="0.01" min={SIGNED_FIELDS.has(key) ? undefined : 0} className={`form-control ${errors[key] ? 'is-invalid' : ''}`} value={amounts[key] ?? ''} onChange={(event) => changeAmount(key, event.target.value)} /><FieldError error={errors[key]} /></div>
       ))}
       {(addableFines.length > 0 || pendingFineIds.length > 0 || includedFines.length > 0) && <div className="col-12"><div className="settlement-fines">
         <i className="bi bi-receipt" aria-hidden="true" />

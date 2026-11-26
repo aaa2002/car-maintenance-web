@@ -1,5 +1,6 @@
 import type { Currency } from './database';
 import type { DriverDocumentKind } from './fleet';
+import { today } from './format';
 import { CAR_DOCUMENT_BUCKET, removeObject, signedUrlMap } from './storage';
 import { expectOk, supabase, unwrap, unwrapList } from './supabase';
 
@@ -9,14 +10,25 @@ export type Driver = {
   weeklyRent: number | null; commissionRate: number | null;
   /** Names Bolt/Uber exports used for this driver, learned while importing. */
   platformNames: string[];
+  /** The driver's id in the Bolt and Uber fleet portals: the most reliable way to recognise them in exports. */
+  boltDriverId: string | null; uberDriverId: string | null;
+  /** Payout account, used for bank transfer exports. */
+  iban: string | null;
+  /** Who invoices are issued to: the driver's PFA/SRL, or the driver as a person when empty. */
+  billing: DriverBilling;
 };
+export type DriverBilling = { name: string | null; taxId: string | null; regNo: string | null; address: string | null; city: string | null; county: string | null };
 export type Assignment = { id: number; driverId: number; carId: number | null; vehicleLabel: string; startsOn: string; endsOn: string | null; notes: string | null };
 export type SettlementStatus = 'paid' | 'partial' | 'unpaid';
+export type PaymentMethod = 'bank' | 'cash' | 'other';
 export type Settlement = {
   id: number; driverId: number; carId: number | null; vehicleLabel: string | null; weekStart: string; dueDate: string; currency: Currency;
   boltEarnings: number; uberEarnings: number; fleetCommission: number; vehicleRent: number; expenses: number; fines: number; bonuses: number;
   manualAdjustment: number; amountSettled: number; notes: string | null;
-  /** Computed in the database: earnings + bonuses + adjustment - commission - rent - expenses - fines. Positive = owed to the driver. */
+  /** Cash from rides the driver already holds; it is deducted from what the fleet pays them. */
+  cashCollected: number;
+  paidOn: string | null; paymentMethod: PaymentMethod | null;
+  /** Computed in the database: earnings + bonuses + adjustment - commission - rent - expenses - fines - cash. Positive = owed to the driver. */
   netAmount: number; outstandingAmount: number; status: SettlementStatus;
 };
 export type DriverReportRow = {
@@ -26,21 +38,28 @@ export type DriverReportRow = {
   payout: number; settled: number; outstanding: number; outstandingAllTime: number;
 };
 
-type DriverRow = { id: number; full_name: string; phone: string | null; email: string | null; license_number: string | null; notes: string | null; active: boolean; weekly_rent: number | null; commission_rate: number | null; platform_names: string[] | null };
+type DriverRow = {
+  id: number; full_name: string; phone: string | null; email: string | null; license_number: string | null; notes: string | null; active: boolean; weekly_rent: number | null; commission_rate: number | null; platform_names: string[] | null;
+  bolt_driver_id: string | null; uber_driver_id: string | null; iban: string | null;
+  billing_name: string | null; billing_tax_id: string | null; billing_reg_no: string | null; billing_address: string | null; billing_city: string | null; billing_county: string | null;
+};
 type AssignmentRow = { id: number; driver_id: number; car_id: number | null; vehicle_label: string; starts_on: string; ends_on: string | null; notes: string | null };
 type SettlementRow = {
   id: number; driver_id: number; car_id: number | null; vehicle_label: string | null; week_start: string; due_date: string; currency: string;
   bolt_earnings: number; uber_earnings: number; fleet_commission: number; vehicle_rent: number; expenses: number; fines: number; bonuses: number;
   manual_adjustment: number; amount_settled: number; notes: string | null; net_amount: number; outstanding_amount: number; status: string;
+  cash_collected: number; paid_on: string | null; payment_method: string | null;
 };
 
-const DRIVER_COLUMNS = 'id, full_name, phone, email, license_number, notes, active, weekly_rent, commission_rate, platform_names';
+const DRIVER_COLUMNS = 'id, full_name, phone, email, license_number, notes, active, weekly_rent, commission_rate, platform_names, bolt_driver_id, uber_driver_id, iban, billing_name, billing_tax_id, billing_reg_no, billing_address, billing_city, billing_county';
 const ASSIGNMENT_COLUMNS = 'id, driver_id, car_id, vehicle_label, starts_on, ends_on, notes';
-const SETTLEMENT_COLUMNS = 'id, driver_id, car_id, vehicle_label, week_start, due_date, currency, bolt_earnings, uber_earnings, fleet_commission, vehicle_rent, expenses, fines, bonuses, manual_adjustment, amount_settled, notes, net_amount, outstanding_amount, status';
+const SETTLEMENT_COLUMNS = 'id, driver_id, car_id, vehicle_label, week_start, due_date, currency, bolt_earnings, uber_earnings, fleet_commission, vehicle_rent, expenses, fines, bonuses, manual_adjustment, amount_settled, notes, net_amount, outstanding_amount, status, cash_collected, paid_on, payment_method';
 
 const mapDriver = (row: DriverRow): Driver => ({
   id: row.id, fullName: row.full_name, phone: row.phone, email: row.email, licenseNumber: row.license_number, notes: row.notes, active: row.active,
   weeklyRent: row.weekly_rent, commissionRate: row.commission_rate, platformNames: row.platform_names ?? [],
+  boltDriverId: row.bolt_driver_id, uberDriverId: row.uber_driver_id, iban: row.iban,
+  billing: { name: row.billing_name, taxId: row.billing_tax_id, regNo: row.billing_reg_no, address: row.billing_address, city: row.billing_city, county: row.billing_county },
 });
 const mapAssignment = (row: AssignmentRow): Assignment => ({ id: row.id, driverId: row.driver_id, carId: row.car_id, vehicleLabel: row.vehicle_label, startsOn: row.starts_on, endsOn: row.ends_on, notes: row.notes });
 const mapSettlement = (row: SettlementRow): Settlement => ({
@@ -48,6 +67,7 @@ const mapSettlement = (row: SettlementRow): Settlement => ({
   currency: row.currency === 'EUR' ? 'EUR' : 'RON', boltEarnings: row.bolt_earnings, uberEarnings: row.uber_earnings, fleetCommission: row.fleet_commission,
   vehicleRent: row.vehicle_rent, expenses: row.expenses, fines: row.fines, bonuses: row.bonuses, manualAdjustment: row.manual_adjustment,
   amountSettled: row.amount_settled, notes: row.notes, netAmount: row.net_amount, outstandingAmount: row.outstanding_amount,
+  cashCollected: row.cash_collected, paidOn: row.paid_on, paymentMethod: row.payment_method === 'bank' || row.payment_method === 'cash' || row.payment_method === 'other' ? row.payment_method : null,
   status: row.status === 'paid' ? 'paid' : row.status === 'partial' ? 'partial' : 'unpaid',
 });
 
@@ -61,10 +81,15 @@ export async function getDriver(id: number) {
   return result.data ? mapDriver(result.data) : null;
 }
 export type DriverInput = Omit<Driver, 'id' | 'platformNames'>;
+const blank = (value: string | null | undefined) => value?.trim() || null;
 const driverPayload = (input: DriverInput) => ({
-  full_name: input.fullName.trim(), phone: input.phone?.trim() || null, email: input.email?.trim() || null, license_number: input.licenseNumber?.trim() || null,
-  notes: input.notes?.trim() || null, active: input.active, weekly_rent: input.weeklyRent, commission_rate: input.commissionRate,
+  full_name: input.fullName.trim(), phone: blank(input.phone), email: blank(input.email), license_number: blank(input.licenseNumber),
+  notes: blank(input.notes), active: input.active, weekly_rent: input.weeklyRent, commission_rate: input.commissionRate,
+  bolt_driver_id: blank(input.boltDriverId), uber_driver_id: blank(input.uberDriverId), iban: blank(input.iban)?.replace(/\s+/g, '').toUpperCase() ?? null,
+  billing_name: blank(input.billing.name), billing_tax_id: blank(input.billing.taxId), billing_reg_no: blank(input.billing.regNo),
+  billing_address: blank(input.billing.address), billing_city: blank(input.billing.city), billing_county: blank(input.billing.county),
 });
+export const emptyBilling: DriverBilling = { name: null, taxId: null, regNo: null, address: null, city: null, county: null };
 export async function createDriver(input: DriverInput) {
   return unwrap(await supabase.from('drivers').insert(driverPayload(input)).select('id').single<{ id: number }>(), 'Adding driver').id;
 }
@@ -109,20 +134,22 @@ const settlementPayload = (input: SettlementInput) => ({
   driver_id: input.driverId, car_id: input.carId, vehicle_label: input.vehicleLabel, week_start: input.weekStart, due_date: input.dueDate, currency: input.currency,
   bolt_earnings: input.boltEarnings, uber_earnings: input.uberEarnings, fleet_commission: input.fleetCommission, vehicle_rent: input.vehicleRent,
   expenses: input.expenses, fines: input.fines, bonuses: input.bonuses, manual_adjustment: input.manualAdjustment, amount_settled: input.amountSettled, notes: input.notes?.trim() || null,
+  cash_collected: input.cashCollected, paid_on: input.paidOn, payment_method: input.paymentMethod,
 });
 export async function createSettlement(input: SettlementInput) {
   return unwrap(await supabase.from('weekly_settlements').insert(settlementPayload(input)).select('id').single<{ id: number }>(), 'Saving settlement').id;
 }
 export async function updateSettlement(id: number, input: SettlementInput) { expectOk(await supabase.from('weekly_settlements').update(settlementPayload(input)).eq('id', id), 'Saving settlement'); }
-/** Settles the whole week: payouts are paid to the driver, debts are paid back by them. */
-export async function markSettlementPaid(settlement: Pick<Settlement, 'id' | 'netAmount'>) {
-  expectOk(await supabase.from('weekly_settlements').update({ amount_settled: Math.round(Math.abs(settlement.netAmount) * 100) / 100 }).eq('id', settlement.id), 'Saving settlement');
+/** Settles the week (fully by default): payouts are paid to the driver, debts are paid back by them. */
+export async function markSettlementPaid(settlement: Pick<Settlement, 'id' | 'netAmount'>, payment: { amount?: number; paidOn?: string; method?: PaymentMethod } = {}) {
+  const amount = Math.round((payment.amount ?? Math.abs(settlement.netAmount)) * 100) / 100;
+  expectOk(await supabase.from('weekly_settlements').update({ amount_settled: amount, paid_on: amount > 0 ? payment.paidOn ?? today() : null, payment_method: amount > 0 ? payment.method ?? 'bank' : null }).eq('id', settlement.id), 'Saving settlement');
 }
 export async function deleteSettlement(id: number) { expectOk(await supabase.from('weekly_settlements').delete().eq('id', id), 'Deleting settlement'); }
 
 /** Same formula as the database's generated column, for live previews while editing. */
-export const settlementNet = (s: Pick<SettlementInput, 'boltEarnings' | 'uberEarnings' | 'bonuses' | 'manualAdjustment' | 'fleetCommission' | 'vehicleRent' | 'expenses' | 'fines'>) =>
-  s.boltEarnings + s.uberEarnings + s.bonuses + s.manualAdjustment - s.fleetCommission - s.vehicleRent - s.expenses - s.fines;
+export const settlementNet = (s: Pick<SettlementInput, 'boltEarnings' | 'uberEarnings' | 'bonuses' | 'manualAdjustment' | 'fleetCommission' | 'vehicleRent' | 'expenses' | 'fines' | 'cashCollected'>) =>
+  s.boltEarnings + s.uberEarnings + s.bonuses + s.manualAdjustment - s.fleetCommission - s.vehicleRent - s.expenses - s.fines - s.cashCollected;
 
 // Reporting
 type ReportRow = {
@@ -178,4 +205,13 @@ export async function updateDriverDocument(id: number, input: DriverDocumentInpu
 export async function deleteDriverDocument(document: Pick<DriverDocument, 'id' | 'attachmentPath'>) {
   expectOk(await supabase.from('driver_documents').delete().eq('id', document.id), 'Deleting document');
   await removeObject(CAR_DOCUMENT_BUCKET, document.attachmentPath);
+}
+
+/** What a driver still needs for each money feature: invoices (billing address), bank transfers (IBAN), imports (rent/commission). */
+export function driverSetupGaps(driver: Pick<Driver, 'billing' | 'iban' | 'weeklyRent' | 'commissionRate'>) {
+  return {
+    billing: !driver.billing.address?.trim() || !driver.billing.city?.trim() || !driver.billing.county?.trim(),
+    iban: !driver.iban?.trim(),
+    terms: driver.weeklyRent === null && driver.commissionRate === null,
+  };
 }

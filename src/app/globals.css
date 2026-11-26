@@ -564,3 +564,98 @@ button.stat-item:disabled .bi-pencil { display: none; }
 .vehicle-state .small { opacity: .9; }
 .vehicle-state.state-idle { color: var(--app-warning); background: var(--app-warning-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-warning) 25%, transparent); }
 .vehicle-state.state-off-road { color: var(--app-text); background: var(--app-surface-muted); box-shadow: 0 0 0 1px var(--app-hairline); }
+
+/* Driver money pages: tabs, weeks, imports, payouts and invoices */
+.subnav { display: flex; gap: 4px; margin: -8px 0 26px; padding: 4px; overflow-x: auto; scrollbar-width: none; border-radius: 999px; background: var(--app-surface-muted); box-shadow: inset 0 0 0 1px var(--app-hairline); width: fit-content; max-width: 100%; }
+.subnav::-webkit-scrollbar { display: none; }
+.subnav a { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 5px 14px; border-radius: 999px; color: var(--app-text-muted); font-size: .86rem; font-weight: 540; text-decoration: none; white-space: nowrap; transition: color var(--app-duration-fast), background-color var(--app-duration-fast); }
+.subnav a:hover { color: var(--app-text); }
+.subnav a.active { color: var(--app-text); background: var(--app-surface); box-shadow: 0 0 0 1px var(--app-hairline), 0 2px 8px -2px rgb(20 26 52 / 18%); }
+.subnav a.active i { color: var(--app-brand); }
+.week-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.week-picker-date { width: 190px; }
+.week-picker-date .form-control, .week-picker-date .date-field-trigger { min-height: 40px; }
+.form-details { padding: 12px 14px; border-radius: var(--app-radius-control); background: var(--app-surface-muted); }
+.form-details > summary { cursor: pointer; font-size: .9rem; font-weight: 600; list-style-position: outside; margin-left: 16px; }
+.form-details[open] > summary { margin-bottom: 4px; }
+.multi-drop .file-drop-empty { padding-block: 34px; }
+.import-file + .import-file { border-top: 1px solid var(--app-hairline); }
+.import-file > .data-row { border-bottom: 0; }
+.import-file-body { padding: 0 18px 14px 70px; }
+.import-warning { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; border-radius: var(--app-radius-control); color: var(--app-warning); background: var(--app-warning-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-warning) 25%, transparent); }
+.import-warning .small { color: var(--app-text); }
+.import-warning.is-muted { color: var(--app-text-muted); background: var(--app-surface-muted); box-shadow: none; }
+.invoice-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: .86rem; color: var(--app-text); }
+.invoice-summary > span { display: inline-flex; align-items: center; gap: 5px; background: none; }
+.invoice-summary .tone-success, .invoice-summary .tone-danger { background: none; }
+.invoice-summary .is-quiet { color: var(--app-text-muted); }
+.invoice-summary .is-divider { width: 1px; height: 16px; background: var(--app-border); }
+.issue-list { max-height: 260px; overflow-y: auto; margin: 8px 0 0; padding: 0; list-style: none; border-radius: var(--app-radius-control); background: var(--app-surface-muted); font-size: .82rem; }
+.issue-list li { display: flex; flex-wrap: wrap; gap: 4px 8px; padding: 7px 12px; border-bottom: 1px solid var(--app-hairline); }
+.issue-list li:last-child { border-bottom: 0; }
+.issue-source { min-width: 0; overflow-wrap: anywhere; font-family: var(--bs-font-monospace); font-size: .76rem; }
+.issue-reason { margin-left: auto; color: var(--app-danger); font-weight: 540; }
+.import-driver-choice { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; width: min(300px, 45%); }
+.import-driver-choice .form-select { min-height: 36px; }
+.import-actions { position: sticky; bottom: 14px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-radius: var(--app-radius-surface); background: color-mix(in srgb, var(--app-surface) 92%, transparent); backdrop-filter: blur(10px); box-shadow: var(--app-bezel), var(--app-shadow-sm); }
+.import-progress { display: flex; flex-direction: column; gap: 4px; min-width: 160px; }
+.import-progress-bar { display: block; height: 6px; overflow: hidden; border-radius: 999px; background: var(--app-surface-muted); }
+.import-progress-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--app-brand); transition: width var(--app-duration) var(--app-ease); }
+.import-result { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.import-table tr.is-clickable { cursor: pointer; }
+.import-table tr.is-clickable:hover > * { background: var(--app-surface-hover); }
+.ride-table { min-width: 720px; }
+.payout-amount { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 120px; text-align: right; }
+.invoice-search { max-width: 280px; min-height: 36px; }
+.invoice-lines { display: flex; flex-direction: column; gap: 10px; }
+.invoice-line { display: grid; grid-template-columns: minmax(0, 1fr) 90px 100px 130px 110px auto; gap: 8px; align-items: end; padding: 10px; border-radius: var(--app-radius-control); background: var(--app-surface-muted); }
+.invoice-line-description { grid-column: 1 / -1; }
+.invoice-totals { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; padding: 14px 16px; border-radius: var(--app-radius-control); background: var(--app-surface-muted); font-size: .9rem; }
+.invoice-totals .is-total { padding-top: 8px; border-top: 1px solid var(--app-border); font-size: 1.05rem; font-weight: 680; }
+.invoice-view { max-width: 880px; }
+.invoice-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0; }
+.invoice-party { padding: 14px 16px; border-radius: var(--app-radius-control); background: var(--app-surface-muted); }
+.invoice-lines-table thead th { padding: 8px 0; color: var(--app-text-muted); font-size: .78rem; font-weight: 540; border-bottom: 1px solid var(--app-hairline); }
+.invoice-lines-table thead th.num, .invoice-lines-table td.num { text-align: right; padding-left: 12px; }
+@media (max-width: 767.98px) {
+  .subnav { margin-top: -4px; }
+  .import-file-body { padding-left: 18px; }
+  .import-driver-row { flex-wrap: wrap; }
+  .import-driver-choice { width: 100%; align-items: stretch; }
+  .payout-row { flex-wrap: wrap; row-gap: 8px; }
+  .payout-row > .data-row-main { flex: 1 1 calc(100% - 40px); }
+  .payout-row > .payout-amount { min-width: 0; flex: 1 1 auto; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-left: 32px; text-align: left; }
+  .invoice-line { grid-template-columns: 1fr 1fr; }
+  .invoice-line > :last-child { justify-self: end; }
+  .invoice-parties { grid-template-columns: 1fr; }
+  /* Invoice lines stack on phones: description on its own row, then quantity, price, net and VAT. */
+  .invoice-view .import-table-wrap { overflow: visible; }
+  .invoice-lines-table thead { display: none; }
+  .invoice-lines-table tbody tr { display: grid; grid-template-columns: auto 1fr 1fr 1fr; gap: 2px 12px; padding: 10px 0; border-bottom: 1px solid var(--app-hairline); }
+  .invoice-lines-table tbody th { grid-column: 1 / -1; border: 0; padding: 0 0 4px; }
+  .invoice-lines-table tbody td { border: 0; padding: 0; font-size: .84rem; color: var(--app-text-muted); }
+  .invoice-lines-table tbody td.num { padding-left: 0; }
+  .invoice-lines-table tfoot tr { display: flex; justify-content: space-between; gap: 12px; }
+  .invoice-lines-table tfoot th, .invoice-lines-table tfoot td { border-bottom: 0; }
+  .invoice-search { max-width: none; flex: 1 1 100%; }
+  .import-actions { bottom: calc(78px + env(safe-area-inset-bottom)); }
+  .week-picker-date { width: 100%; }
+}
+
+/* Setup banners: what still needs filling in, with a way to do it */
+.setup-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 20px; padding: 13px 16px; border-radius: var(--app-radius-control); background: var(--app-warning-soft); color: var(--app-text); box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-warning) 25%, transparent); }
+.setup-banner.tone-info { background: var(--app-info-soft); box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-info) 22%, transparent); }
+.setup-banner-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; color: var(--app-warning); background: color-mix(in srgb, var(--app-warning) 16%, var(--app-surface)); }
+.setup-banner.tone-info .setup-banner-icon { color: var(--app-info); background: color-mix(in srgb, var(--app-info) 14%, var(--app-surface)); }
+.setup-banner-copy { display: flex; flex: 1 1 260px; flex-direction: column; gap: 2px; min-width: 0; font-size: .9rem; }
+.setup-banner-copy > span { color: var(--app-text-muted); font-size: .84rem; }
+.setup-banner-action { display: flex; flex-wrap: wrap; gap: 8px; }
+.setup-checklist { padding: 18px 20px; }
+.setup-checklist-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.setup-checklist ul { margin: 0; padding: 0; list-style: none; }
+.setup-checklist li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 10px 0 10px 46px; border-top: 1px solid var(--app-hairline); position: relative; font-size: .9rem; }
+.setup-checklist li > i { position: absolute; left: 10px; top: 12px; color: var(--app-text-muted); }
+.setup-checklist li.is-done { color: var(--app-text-muted); }
+.setup-checklist li.is-done > i { color: var(--app-success); }
+.setup-checklist li .flex-grow-1 { flex: 1 1 200px; }
+.setup-banner-list { margin: 2px 0 0; padding-left: 18px; }

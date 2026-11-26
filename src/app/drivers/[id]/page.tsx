@@ -9,9 +9,9 @@ import { FineList } from '@/components/fine-list';
 import { FineForm, FinePaidForm } from '@/components/fine-forms';
 import { DocumentForm } from '@/components/maintenance-forms';
 import { useAuth, useSettings } from '@/components/providers';
-import { ConfirmButton, Empty, ErrorAlert, ListSkeleton, PageHeader, SectionHeader, stagger, StatusPill, useToast } from '@/components/ui';
+import { ConfirmButton, Empty, ErrorAlert, ListSkeleton, PageHeader, SectionHeader, SetupBanner, stagger, StatusPill, useToast } from '@/components/ui';
 import { getCars, getFuelUse, latestDocuments, type Car, type FuelUse } from '@/lib/database';
-import { consumptionOf, contribution, createDriverDocument, deleteAssignment, deleteDriver, deleteDriverDocument, deleteSettlement, getAssignmentsForDriver, getDriver, getDriverDocuments, getDriverReport, getDrivers, getSettlementsForDriver, markSettlementPaid, updateDriverDocument, type Assignment, type Driver, type DriverDocument, type DriverReportRow, type Settlement } from '@/lib/drivers';
+import { consumptionOf, contribution, createDriverDocument, driverSetupGaps, deleteAssignment, deleteDriver, deleteDriverDocument, deleteSettlement, getAssignmentsForDriver, getDriver, getDriverDocuments, getDriverReport, getDrivers, getSettlementsForDriver, markSettlementPaid, updateDriverDocument, type Assignment, type Driver, type DriverDocument, type DriverReportRow, type Settlement } from '@/lib/drivers';
 import { defaultValidity, documentState, DRIVER_DOCUMENT_KINDS, DRIVER_DOCUMENTS, fuelAlerts, type DriverDocumentKind } from '@/lib/fleet';
 import { getFines, type Fine } from '@/lib/fines';
 import { localDate, money, monthRange, number, today } from '@/lib/format';
@@ -58,6 +58,8 @@ export default function DriverPage() {
     finally { setLoading(false); }
   }, [user, driverId]);
   useEffect(() => { void load(); }, [load]);
+  // Linked from invoices with ?edit=1 to fill in billing details.
+  useEffect(() => { if (new URLSearchParams(location.search).get('edit') === '1') setEditing(true); }, []);
 
   const loadReport = useCallback(async () => {
     if (!user) return;
@@ -102,6 +104,11 @@ export default function DriverPage() {
         action={<button className="btn btn-outline-secondary" onClick={() => setEditing(true)}><i className="bi bi-pencil me-sm-2" /><span className="d-none d-sm-inline">{t('edit')}</span></button>}
       />
       {!driver.active && <div className="mb-3"><StatusPill tone="neutral">{t('inactive')}</StatusPill></div>}
+      {driver.active && (() => {
+        const gaps = driverSetupGaps(driver);
+        const lines = [gaps.billing && t('gapBilling'), gaps.iban && t('gapIban'), gaps.terms && t('gapTerms')].filter(Boolean) as string[];
+        return lines.length > 0 && <SetupBanner icon="bi-person-exclamation" title={t('driverDetailsMissing').replace('{name}', driver.fullName)} text={<ul className="setup-banner-list">{lines.map((line) => <li key={line}>{line}</li>)}</ul>} action={<button className="btn btn-sm btn-primary" onClick={() => setEditing(true)}>{t('completeDetails')}</button>} />;
+      })()}
 
       <div className="app-panel driver-current section-gap">
         <span className="row-icon tone-brand"><i className="bi bi-car-front" /></span>
