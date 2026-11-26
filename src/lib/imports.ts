@@ -36,7 +36,7 @@ const phoneKey = (value: string | null | undefined) => (value ? value.replace(/\
 const VARIANTS: Record<string, string> = { ioan: 'ion', george: 'gheorghe', mihail: 'mihai', nicu: 'nicolae', costel: 'constantin' };
 const canonical = (word: string) => VARIANTS[word] ?? word;
 
-/** Names that are probably the same person: "Stan Mihai" and "Mihail Stan", "Popescu Ion" and "Ioan Popescu". */
+/** Names that are probably the same person: same words in another order, or a first name written in a variant spelling or shortened. */
 export function similarNames(a: string, b: string) {
   const left = nameKey(a).split(' ').map(canonical); const right = nameKey(b).split(' ').map(canonical);
   if (!left[0] || !right[0] || nameKey(a) === nameKey(b)) return false;
@@ -51,7 +51,7 @@ export function similarNames(a: string, b: string) {
   });
 }
 
-/** "ION POPESCU" becomes "Ion Popescu"; names already in mixed case are kept as they are. */
+/** Names exported in all capitals or all lower case get capitalised words; names already in mixed case are kept as they are. */
 export function displayName(name: string) {
   const clean = name.replace(/\s+/g, ' ').trim();
   if (clean !== clean.toUpperCase() && clean !== clean.toLowerCase()) return clean;
