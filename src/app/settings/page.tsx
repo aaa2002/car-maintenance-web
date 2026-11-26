@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
+import { CompanySection } from '@/components/company-section';
 import { PlanSection } from '@/components/plan-section';
 import { useAuth, useSettings } from '@/components/providers';
 import { deleteAccount } from '@/lib/account';
@@ -37,6 +38,8 @@ export default function SettingsPage() {
       </section>
 
       <Suspense fallback={null}><PlanSection /></Suspense>
+
+      <CompanySection />
 
       <section className="mb-4">
         <SectionHeader title={t('preferences')} />

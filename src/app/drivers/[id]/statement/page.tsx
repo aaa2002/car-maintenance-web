@@ -48,6 +48,7 @@ export default function StatementPage() {
     { label: t('vehicleRent'), value: -settlement.vehicleRent },
     { label: t('expenses'), value: -settlement.expenses },
     { label: t('fines'), value: -settlement.fines },
+    { label: t('cashCollected'), value: -settlement.cashCollected },
   ].filter((line) => Math.abs(line.value) > 0.005) : [];
   const netLabel = settlement && settlement.netAmount < 0 ? t('driverOwes') : t('payoutToDriver');
   const weekLabel = settlement ? `${localDate(settlement.weekStart, language)} - ${localDate(addDays(settlement.weekStart, 6), language)}` : '';

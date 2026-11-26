@@ -3,7 +3,7 @@
 import { admin, handler, HttpError, json, requireUser, stripe } from '../_shared/billing.ts';
 
 // Every upload lives under <user id>/<folder>/ (see src/lib/storage.ts).
-const BUCKETS: Record<string, string[]> = { 'car-photos': ['cars'], 'car-documents': ['documents'] };
+const BUCKETS: Record<string, string[]> = { 'car-photos': ['cars'], 'car-documents': ['documents'], 'ride-invoices': ['ride-invoices/bolt', 'ride-invoices/uber'] };
 const PAGE = 1000;
 
 /** Auth refuses to delete a user who still owns storage objects, so remove them first. */

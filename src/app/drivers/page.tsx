@@ -4,10 +4,12 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/app-shell';
 import { DriverForm } from '@/components/driver-forms';
+import { DriverSubnav } from '@/components/driver-subnav';
 import { useAuth, useSettings } from '@/components/providers';
-import { Empty, ErrorAlert, ListSkeleton, PageHeader, SectionHeader, stagger, StatusPill, useToast } from '@/components/ui';
+import { Empty, ErrorAlert, ListSkeleton, PageHeader, SectionHeader, SetupChecklist, stagger, StatusPill, useToast } from '@/components/ui';
 import { getFuelUse, type FuelUse } from '@/lib/database';
-import { consumptionOf, contribution, getDriverReport, type DriverReportRow } from '@/lib/drivers';
+import { consumptionOf, contribution, driverSetupGaps, getDriverReport, getDrivers, type Driver, type DriverReportRow } from '@/lib/drivers';
+import { getCompanyProfile, profileGaps, type CompanyProfile } from '@/lib/invoicing';
 import { fuelAlerts } from '@/lib/fleet';
 import { money, monthRange, number } from '@/lib/format';
 
@@ -36,14 +38,17 @@ export default function DriversPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
   const [adding, setAdding] = useState(false);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [profile, setProfile] = useState<CompanyProfile | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const period = monthRange(offset, language);
 
   const load = useCallback(async () => {
     if (!user) return;
     setError(undefined);
     try {
-      const [nextRows, nextFuel] = await Promise.all([getDriverReport(period.from, period.to, currency), getFuelUse(period.from, period.to)]);
-      setRows(nextRows); setFuel(nextFuel);
+      const [nextRows, nextFuel, nextDrivers, nextProfile] = await Promise.all([getDriverReport(period.from, period.to, currency), getFuelUse(period.from, period.to), getDrivers(), getCompanyProfile()]);
+      setRows(nextRows); setFuel(nextFuel); setDrivers(nextDrivers); setProfile(nextProfile); setProfileLoaded(true);
     }
     catch (caught) { setError(caught); }
     finally { setLoading(false); }
@@ -82,16 +87,17 @@ export default function DriversPage() {
         subtitle={period.label}
         action={<button className="btn btn-primary btn-island" onClick={() => setAdding(true)} aria-label={t('addDriver')}><span className="d-none d-sm-inline">{t('addDriver')}</span><span className="btn-island-icon"><i className="bi bi-plus-lg" /></span></button>}
       />
+      <DriverSubnav />
       <div className="toolbar">
         <div className="segmented">
           <button aria-label={t('previous')} onClick={() => setOffset((value) => value - 1)}><i className="bi bi-chevron-left" /></button>
           <button className={!offset ? 'active' : ''} onClick={() => setOffset(0)}>{t('thisMonth')}</button>
           <button aria-label={t('next')} disabled={offset >= 0} onClick={() => setOffset((value) => value + 1)}><i className="bi bi-chevron-right" /></button>
         </div>
-        <Link href="/drivers/import" className="btn btn-sm btn-outline-secondary"><i className="bi bi-upload me-2" />{t('importEarnings')}</Link>
         {rows.length > 0 && <button className="btn btn-sm btn-outline-secondary" onClick={exportCsv}><i className="bi bi-download me-2" />{t('exportCsv')}</button>}
       </div>
       {Boolean(error) && <ErrorAlert error={error} onRetry={() => void load()} />}
+      {profileLoaded && <DriverSetup drivers={drivers} profile={profile} />}
 
       {rows.length > 0 && (
         <div className="app-panel stat-strip">
@@ -131,4 +137,21 @@ export default function DriversPage() {
       <DriverForm show={adding} onClose={() => setAdding(false)} onSave={async () => { await load(); toast(t('driverSaved')); }} />
     </AppShell>
   );
+}
+
+/** What is still missing before invoices, bank transfers and imports work without manual fixing. */
+function DriverSetup({ drivers, profile }: { drivers: Driver[]; profile: CompanyProfile | null }) {
+  const { t } = useSettings();
+  const active = drivers.filter((driver) => driver.active);
+  if (!active.length) return null;
+  const missing = (key: 'billing' | 'iban' | 'terms') => active.filter((driver) => driverSetupGaps(driver)[key]);
+  const names = (list: Driver[]) => (list.length > 3 ? `${list.slice(0, 3).map((driver) => driver.fullName).join(', ')} ${t('andMore').replace('{n}', String(list.length - 3))}` : list.map((driver) => driver.fullName).join(', '));
+  const fix = (list: Driver[]) => list.length > 0 && <Link href={`/drivers/${list[0].id}?edit=1`} className="btn btn-sm btn-outline-secondary">{list.length > 1 ? t('fixNext') : t('completeDetails')}</Link>;
+  const billing = missing('billing'); const iban = missing('iban'); const terms = missing('terms');
+  return <SetupChecklist title={t('setupTitle')} text={t('setupText')} items={[
+    { key: 'company', done: profileGaps(profile).length === 0, label: t('setupCompany'), detail: t('setupCompanyDetail'), action: <Link href="/settings#company" className="btn btn-sm btn-primary">{t('setUpCompany')}</Link> },
+    { key: 'billing', done: !billing.length, label: billing.length ? t('setupBilling').replace('{n}', String(billing.length)) : t('setupBillingDone'), detail: names(billing), action: fix(billing) },
+    { key: 'iban', done: !iban.length, label: iban.length ? t('setupIban').replace('{n}', String(iban.length)) : t('setupIbanDone'), detail: names(iban), action: fix(iban) },
+    { key: 'terms', done: !terms.length, label: terms.length ? t('setupTerms').replace('{n}', String(terms.length)) : t('setupTermsDone'), detail: names(terms), action: fix(terms) },
+  ]} />;
 }

@@ -168,3 +168,33 @@ export function useToast() {
   if (!value) throw new Error('useToast must be used inside ToastProvider');
   return value;
 }
+
+/**
+ * Tells the user what is missing for a feature to work (company details for invoices, a driver's IBAN for
+ * transfers…) and takes them straight to where it is filled in.
+ */
+export function SetupBanner({ icon, title, text, action, tone = 'warning', className = '' }: { icon: string; title: string; text?: ReactNode; action?: ReactNode; tone?: 'warning' | 'info'; className?: string }) {
+  return (
+    <div className={`setup-banner tone-${tone} ${className}`} role="status">
+      <span className="setup-banner-icon"><i className={`bi ${icon}`} aria-hidden="true" /></span>
+      <div className="setup-banner-copy"><strong>{title}</strong>{text && <span>{text}</span>}</div>
+      {action && <div className="setup-banner-action">{action}</div>}
+    </div>
+  );
+}
+
+/** A short list of setup steps, each done or still to do, with a link to where it is fixed. */
+export function SetupChecklist({ title, text, items }: { title: string; text?: string; items: { key: string; done: boolean; label: string; detail?: string; action?: ReactNode }[] }) {
+  const open = items.filter((item) => !item.done).length;
+  if (!open) return null;
+  return (
+    <section className="app-panel setup-checklist section-gap" aria-label={title}>
+      <div className="setup-checklist-head"><span className="setup-banner-icon tone-warning"><i className="bi bi-list-check" aria-hidden="true" /></span><div><strong className="d-block">{title}</strong>{text && <span className="small text-body-secondary">{text}</span>}</div></div>
+      <ul>{items.map((item) => <li key={item.key} className={item.done ? 'is-done' : ''}>
+        <i className={`bi ${item.done ? 'bi-check-circle-fill' : 'bi-circle'}`} aria-hidden="true" />
+        <span className="flex-grow-1"><span className="d-block">{item.label}</span>{item.detail && !item.done && <span className="small text-body-secondary">{item.detail}</span>}</span>
+        {!item.done && item.action}
+      </li>)}</ul>
+    </section>
+  );
+}
